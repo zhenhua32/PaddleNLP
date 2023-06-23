@@ -57,21 +57,21 @@ class ModelArguments:
 
 
 def main():
-    # Parse the arguments.
+    # Parse the arguments. 参数解析
     parser = PdArgumentParser((ModelArguments, DataArguments, PromptTuningArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     training_args.print_config(model_args, "Model")
     training_args.print_config(data_args, "Data")
     paddle.set_device(training_args.device)
 
-    # Load the pretrained language model.
+    # Load the pretrained language model. 加载模型和分词器
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
     model = UTC.from_pretrained(model_args.model_name_or_path)
 
-    # Define template for preprocess and verbalizer for postprocess.
+    # Define template for preprocess and verbalizer for postprocess. 看看这个模板是怎么生成的
     template = UTCTemplate(tokenizer, training_args.max_seq_length)
 
-    # Load and preprocess dataset.
+    # Load and preprocess dataset. 加载数据集
     train_ds = load_dataset(
         read_local_dataset,
         data_path=data_args.dataset_path,
@@ -85,10 +85,10 @@ def main():
         lazy=False,
     )
 
-    # Define the criterion.
+    # Define the criterion. 定义损失
     criterion = UTCLoss()
 
-    # Initialize the prompt model.
+    # Initialize the prompt model. 初始化提示学习的模型
     prompt_model = PromptModelForSequenceClassification(
         model, template, None, freeze_plm=training_args.freeze_plm, freeze_dropout=training_args.freeze_dropout
     )
@@ -117,6 +117,7 @@ def main():
 
         return {"micro_f1": micro_f1, "macro_f1": macro_f1}
 
+    # 初始化训练器
     trainer = PromptTrainer(
         model=prompt_model,
         tokenizer=tokenizer,
@@ -128,7 +129,7 @@ def main():
         compute_metrics=compute_metrics_single_label if data_args.single_label else compute_metrics,
     )
 
-    # Training.
+    # Training. 训练模型
     if training_args.do_train:
         train_results = trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
         metrics = train_results.metrics
@@ -137,7 +138,7 @@ def main():
         trainer.save_metrics("train", metrics)
         trainer.save_state()
 
-    # Export.
+    # Export. 导出模型
     if training_args.do_export:
         input_spec = [
             InputSpec(shape=[None, None], dtype="int64", name="input_ids"),
