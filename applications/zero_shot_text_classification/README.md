@@ -2,6 +2,9 @@
 
 我们的目标是复刻一个, 然后模型用其他的替换. 感觉不太能用别的模型替换, 绑定 UTC 模型了.
 
+[ERNIE-Pytorch](https://github.com/nghuyong/ERNIE-Pytorch/tree/master)
+这个库已经将文心模型转换成了 pytorch 模型.
+
 ----
 
 简体中文 | [English](README_en.md)

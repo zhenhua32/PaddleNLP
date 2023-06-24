@@ -24,6 +24,9 @@ __all__ = ["MLMPromptTokenizer"]
 
 
 class MLMPromptTokenizer(object):
+    """
+    还要看个特殊的分词器
+    """
 
     omask_token = "[O-MASK]"
 

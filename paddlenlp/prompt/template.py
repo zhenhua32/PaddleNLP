@@ -51,6 +51,7 @@ DEFAULT_MAX_OPTIONS = 10
 class Template(nn.Layer):
     """
     Base class for [`Template`].
+    果然还是要看看最基础的模板类
 
     Args:
         prompt (`str`):
@@ -62,7 +63,9 @@ class Template(nn.Layer):
             that it has a maximum length, including prompts.
     """
 
+    # 定义模板的特殊 token
     template_special_tokens = ["text", "hard", "soft", "soft_id", "prefix", "sep", "mask", "options"]
+    # 模板的属性
     template_attributes = [
         "length",
         "encoder",
@@ -74,6 +77,7 @@ class Template(nn.Layer):
         "add_space",
         "truncate",
     ]
+    # 模板的输入特征名称
     input_feature_names = ["do_truncate", "token_types", "positions"]
     opt_token = "[OPT]"
     omask_token = "[O-MASK]"
@@ -92,11 +96,16 @@ class Template(nn.Layer):
 
     @prompt.setter
     def prompt(self, prompt):
+        """不能修改 prompt"""
         logger.warning("Prompt can not be modified once set.")
 
     def set_prompt(self, prompt: str):
+        """
+        设置 prompt
+        """
         if prompt is not None:
             if isinstance(prompt, str):
+                # 解析模板字符串
                 self._prompt = self.parse_template_string(prompt)
             else:
                 self._prompt = prompt
@@ -287,6 +296,7 @@ class Template(nn.Layer):
     @staticmethod
     def parse_template_string(prompt: str, left_token: Optional[str] = "{", right_token: Optional[str] = "}"):
         """
+        解析模板字符串
         Parse the defined string as a sequence of dictionaries.
 
         Args:
@@ -311,31 +321,40 @@ class Template(nn.Layer):
         parsed = []
         index = 0
         while index < len(prompt):
-            # Delete extra spaces.
+            # Delete extra spaces. 当前字符是空格
             part = {"add_space": " "} if prompt[index] == " " else {}
             while index < len(prompt) and prompt[index] == " ":
+                # 是空格就跳过, 到下一个字符
                 index += 1
             if index == len(prompt):
+                # 长度满了就退出
                 break
+
+            # 解析成对的标记, 比如 {} 或者 []
             # Parse blocks with paired tokens like "{ }".
             if prompt[index] == left_token:
                 left_index = index
                 while index < len(prompt):
+                    # 如果是左括号, 就入栈
                     if prompt[index] == left_token:
                         left_stack.append(index)
                     elif prompt[index] == right_token:
+                        # 如果是右括号, 就出栈
                         left_stack.pop()
                         if len(left_stack) == 0:
                             break
                     index += 1
                 if index == len(prompt) and len(left_stack) > 0:
+                    # 有不完整的
                     raise ValueError(
                         "{} at position {} has no corresponding {}".format(left_token, left_index, right_token)
                     )
                 try:
+                    # 原始直接执行的
                     part_dict = eval(prompt[left_index : index + 1])
                     if isinstance(part_dict, set):
                         part_dict = {k: None for k in part_dict}
+                    # 这个 part 就是一开始定义的
                     part.update(part_dict)
                 except SyntaxError:
                     logger.error(traceback.format_exc())
@@ -343,14 +362,17 @@ class Template(nn.Layer):
                 index += 1
             # Parse simplified discrete prompts.
             else:
+                # 解析硬编码的文本
                 left_index = index
                 while index < len(prompt) and prompt[index] != left_token:
                     index += 1
                 part["hard"] = prompt[left_index:index].rstrip(" ")
 
             if "options" in part:
+                # 解析选项
                 if os.path.isfile(part["options"]):
                     with open(part["options"], "r") as fp:
+                        # 一行一个标签
                         labels = [x.strip() for x in fp]
                     part["options"] = labels
                     part["length"] = len(labels)
@@ -525,7 +547,6 @@ class SoftTemplate(Template):
 
             # Deal with continuous prompt with specific initialization.
             elif "soft" in part and part["soft"] is not None:
-
                 # Get word tokens for initialization.
                 if "add_space" in part:
                     part["soft"] = part["add_space"] + part["soft"]
@@ -595,8 +616,7 @@ class SoftTemplate(Template):
         if self.soft_embeddings is not None:
             if self.soft_embeddings.weight.shape[0] != self.num_soft_token:
                 raise ValueError(
-                    "Given soft embeddings are incompatible with those "
-                    'defined in template "{}"'.format(self._prompt)
+                    "Given soft embeddings are incompatible with those " 'defined in template "{}"'.format(self._prompt)
                 )
         else:
             self.soft_embeddings = nn.Embedding(self.num_soft_token, self.embed_size)
@@ -873,12 +893,14 @@ class AutoTemplate(object):
 class UTCTemplate(Template):
     """
     Template for Unified Tag Classification.
+    看下模板是怎么定义的
     """
 
     template_special_tokens = ["text", "hard", "sep", "cls", "options"]
 
     def __init__(self, tokenizer: PretrainedTokenizer, max_length: int, prompt: str = None):
         prompt = (
+            # 默认值, {选项}sep{text_a}sep{text_b}
             (
                 "{'options': 'choices', 'add_omask': True, 'position': 0, 'token_type': 1}"
                 "{'sep': None, 'token_type': 0, 'position': 0}{'text': 'text_a'}{'sep': None, 'token_type': 1}{'text': 'text_b'}"
@@ -887,14 +909,16 @@ class UTCTemplate(Template):
             else prompt
         )
         super(UTCTemplate, self).__init__(prompt, tokenizer, max_length)
+        # 模型的最大长度
         self.max_position_id = self.tokenizer.model_max_length - 1
         self.max_length = max_length
         if not self._has_options():
-            raise ValueError(
-                "Expected `options` and `add_omask` are in defined prompt, but got {}".format(self.prompt)
-            )
+            raise ValueError("Expected `options` and `add_omask` are in defined prompt, but got {}".format(self.prompt))
 
     def _has_options(self):
+        """
+        检查提示模板, 需要有 options 和 add_omask
+        """
         for part in self.prompt:
             if "options" in part and "add_omask" in part:
                 return True
@@ -905,11 +929,15 @@ class UTCTemplate(Template):
     ) -> List[str]:
         inputs = super(UTCTemplate, self).build_inputs_with_prompt(example, prompt)
         for index, part in enumerate(inputs):
+            # 将 cls 替换成 [CLS]
             if "cls" in part:
                 inputs[index] = self.tokenizer.cls_token
         return inputs
 
     def encode(self, example: Dict[str, Any], use_mask: bool = False):
+        """
+        编码
+        """
         input_dict = super(UTCTemplate, self).encode(example)
 
         # Set OMASK and MASK positions and labels for options.
@@ -918,9 +946,7 @@ class UTCTemplate(Template):
             np.where(np.array(input_dict["input_ids"]) == omask_token_id)[0].squeeze().tolist()
         )
 
-        sep_positions = (
-            np.where(np.array(input_dict["input_ids"]) == self.tokenizer.sep_token_id)[0].squeeze().tolist()
-        )
+        sep_positions = np.where(np.array(input_dict["input_ids"]) == self.tokenizer.sep_token_id)[0].squeeze().tolist()
         input_dict["cls_positions"] = sep_positions[0]
 
         # Limit the maximum position ids.
