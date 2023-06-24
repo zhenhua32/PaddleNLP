@@ -1285,6 +1285,7 @@ class UIE(ErniePretrainedModel):
 
 class UTC(ErniePretrainedModel):
     """
+    基于文心模型
     Ernie Model with two linear layer on the top of the hidden-states output to compute
     probability of candidate labels, designed for Unified Tag Classification.
     """
@@ -1292,6 +1293,7 @@ class UTC(ErniePretrainedModel):
     def __init__(self, config: ErnieConfig):
         super(UTC, self).__init__(config)
         self.ernie = ErnieModel(config)
+        # 这是固定的, 多了两个线性层
         self.predict_size = 64
         self.linear_q = paddle.nn.Linear(config.hidden_size, self.predict_size)
         self.linear_k = paddle.nn.Linear(config.hidden_size, self.predict_size)
@@ -1320,13 +1322,14 @@ class UTC(ErniePretrainedModel):
             attention_mask (Tensor):
                 See :class:`ErnieModel`.
             omask_positions (Tensor of shape `(batch_size, max_option)`):
-                Masked positions of [O-MASK] tokens padded with 0.
+                Masked positions of [O-MASK] tokens padded with 0. 这是候选项
             cls_positions (Tensor of shape `(batch_size)`):
                 Masked positions of the second [CLS] token.
             labels (Tensor of shape `(num_labels_in_batch,)`, optional):
                 Labels for computing classification loss.
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        # 调用文心模型
         outputs = self.ernie(
             input_ids,
             token_type_ids=token_type_ids,
@@ -1337,23 +1340,33 @@ class UTC(ErniePretrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
+        # shape 是 (batch_size, seq_len, hidden_size)
         sequence_output = outputs[0]
 
         batch_size, seq_len, hidden_size = sequence_output.shape
+        # shape 是 (batch_size * seq_len, hidden_size)
         flat_sequence_output = paddle.reshape(sequence_output, [-1, hidden_size])
         flat_length = paddle.arange(batch_size) * seq_len
+        # shape 是 (batch_size, 1)
         flat_length = flat_length.unsqueeze(axis=1).astype("int64")
-
+        # 用来收集 [CLS] 的输出, gather 的第二个参数的 shape 是 (batch_size).  cls_output 的 shape 是 (batch_size, hidden_size)
         cls_output = paddle.tensor.gather(flat_sequence_output, cls_positions + flat_length.squeeze(1))
+        # shape 是 (batch_size, predict_size)
         q = self.linear_q(cls_output)
 
+        # 用来收集 [O-MASK] 的输出, gather 的第二个参数的 shape 是 (batch_size * max_option). option_output 的 shape 是 (batch_size * max_option, hidden_size)
         option_output = paddle.tensor.gather(flat_sequence_output, paddle.reshape(omask_positions + flat_length, [-1]))
+        # shape 是 (batch_size, max_option, hidden_size)
         option_output = paddle.reshape(option_output, [batch_size, -1, hidden_size])
+        # shape 是 (batch_size, max_option, predict_size)
         k = self.linear_k(option_output)
 
+        # shape 是 (batch_size, max_option)
         option_logits = paddle.matmul(q.unsqueeze(1), k, transpose_y=True).squeeze(1)
+        # 这个就是自注意力里的除以 sqrt(d)
         option_logits = option_logits / self.predict_size**0.5
         for index, logit in enumerate(option_logits):
+            # 0 是填充的, 就是说如果是填充的, 就减去一个很大的数, 这样 softmax 之后就是 0
             option_logits[index] -= (1 - (omask_positions[index] > 0).astype("float32")) * 1e12
 
         loss = None
@@ -1363,6 +1376,7 @@ class UTC(ErniePretrainedModel):
                 output = output + (outputs.hidden_states,)
             if output_attentions:
                 output = output + (output.attentions,)
+            # loss 都没改变, 这里肯定是 None. 只有一项输出的时候, 不要用元组.
             return ((loss,) + output) if loss is not None else (output[0] if len(output) == 1 else output)
 
         return MultipleChoiceModelOutput(
