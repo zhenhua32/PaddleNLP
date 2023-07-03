@@ -121,6 +121,9 @@ class Template(nn.Layer):
         raise NotImplementedError
 
     def _check_template_special_tokens(self):
+        """
+        检查模板中的特殊 tokens
+        """
         valid_attr = self.template_special_tokens + self.template_attributes
         prompt_attr = []
         for part in self._prompt:
@@ -228,12 +231,17 @@ class Template(nn.Layer):
         return position_ids
 
     def create_truncation_sequence_from_prompt(self, prompt: Optional[List[Dict[str, Any]]] = None) -> List[int]:
+        """
+        定义 prompt 中每个部分是否需要截断
+        """
         prompt = self._prompt.copy() if prompt is None else prompt.copy()
         do_truncate = []
         for part in prompt:
             if "truncate" in part:
+                # 优先使用定义的
                 do_truncate.append(part["truncate"])
             elif "text" in part:
+                # 文本是需要的
                 do_truncate.append(True)
             else:
                 do_truncate.append(False)

@@ -152,12 +152,18 @@ class ErniePretrainedModel(PretrainedModel):
 
     """
 
+    # 配置文件名
     model_config_file = CONFIG_NAME
+    # 配置类
     config_class = ErnieConfig
+    # 资源文件名字的字典
     resource_files_names = {"model_state": "model_state.pdparams"}
+    # 基础模型的前缀
     base_model_prefix = "ernie"
 
+    # 初始配置
     pretrained_init_configuration = ERNIE_PRETRAINED_INIT_CONFIGURATION
+    # 模型的下载地址
     pretrained_resource_files_map = ERNIE_PRETRAINED_RESOURCE_FILES_MAP
 
     def _init_weights(self, layer):
@@ -202,6 +208,7 @@ class ErnieModel(ErniePretrainedModel):
             initializer=nn.initializer.TruncatedNormal(mean=0.0, std=self.initializer_range)
         )
         self.embeddings = ErnieEmbeddings(config=config, weight_attr=weight_attr)
+        # 单个编码器层
         encoder_layer = nn.TransformerEncoderLayer(
             config.hidden_size,
             config.num_attention_heads,
@@ -213,9 +220,11 @@ class ErnieModel(ErniePretrainedModel):
             weight_attr=weight_attr,
             normalize_before=False,
         )
+        # 编码器部分
         self.encoder = nn.TransformerEncoder(
             encoder_layer, config.num_hidden_layers, enable_recompute=config.enable_recompute
         )
+        # 池化层
         self.pooler = ErniePooler(config, weight_attr)
 
     def get_input_embeddings(self):
@@ -228,7 +237,9 @@ class ErnieModel(ErniePretrainedModel):
         self,
         input_ids: Optional[Tensor] = None,
         token_type_ids: Optional[Tensor] = None,
+        # 位置 ids
         position_ids: Optional[Tensor] = None,
+        # ERNIE 使用全词掩码, 所以同一个词有相同的掩码方式
         attention_mask: Optional[Tensor] = None,
         task_type_ids: Optional[Tensor] = None,
         past_key_values: Optional[Tuple[Tuple[Tensor]]] = None,
@@ -239,6 +250,7 @@ class ErnieModel(ErniePretrainedModel):
         return_dict: Optional[bool] = None,
     ):
         r"""
+        主要还是看看前向传播需要什么, 以及返回什么
         Args:
             input_ids (Tensor):
                 Indices of input sequence tokens in the vocabulary. They are
@@ -317,6 +329,7 @@ class ErnieModel(ErniePretrainedModel):
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         if input_ids is not None and inputs_embeds is not None:
+            # 需要指定输入
             raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time.")
 
         # init the default bool value
@@ -326,15 +339,22 @@ class ErnieModel(ErniePretrainedModel):
         use_cache = use_cache if use_cache is not None else False
         past_key_values_length = 0
         if past_key_values is not None:
+            # past_key_values_length 实际是 sequence_length - 1
             past_key_values_length = past_key_values[0][0].shape[2]
 
+        # 计算注意力掩码, 最终的 shape 会广播到 [batch_size, num_attention_heads, sequence_length, sequence_length]
         if attention_mask is None:
+            # 用 unsqueeze 就是将 shape 扩展为 [batch_size, 1, 1, seq_len]
             attention_mask = paddle.unsqueeze(
+                # input_ids 的 shape 是 [batch_size, seq_len]
                 (input_ids == self.pad_token_id).astype(self.pooler.dense.weight.dtype) * -1e4, axis=[1, 2]
             )
             if past_key_values is not None:
                 batch_size = past_key_values[0][0].shape[0]
+                # 前几层都不要了, 全部用 0, shape 是 [batch_size, 1, 1, past_key_values_length]
                 past_mask = paddle.zeros([batch_size, 1, 1, past_key_values_length], dtype=attention_mask.dtype)
+                # 拼接到一起, shape 是 [batch_size, 1, 1, seq_len]. 当这里的时候, input_ids 的 shape 是 (batch_size, 1)
+                # 所以, 最后一个维度是 sequence_length - 1 + 1
                 attention_mask = paddle.concat([past_mask, attention_mask], axis=-1)
 
         # For 2D attention_mask from tokenizer
@@ -1292,6 +1312,7 @@ class UTC(ErniePretrainedModel):
 
     def __init__(self, config: ErnieConfig):
         super(UTC, self).__init__(config)
+        # 内部的模型
         self.ernie = ErnieModel(config)
         # 这是固定的, 多了两个线性层
         self.predict_size = 64

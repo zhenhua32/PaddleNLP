@@ -93,6 +93,24 @@ python label_studio.py \
 
 <a name="模型微调"></a>
 
+-----
+
+准备生成训练数据.
+
+```json
+{"text_a": "为什么康乾盛世又称红薯盛世？康乾盛世时普通百姓生活水平到底怎样？", "text_b": "", "question": "", "choices": ["故事", "文化", "娱乐", "体育", "财经", "房产", "汽车", "教育", "科技", "军事", "旅游", "国际", "股票", "农业", "电竞"], "labels": [13]}
+```
+
+单条数据的格式如上, 需要有以下字段:
+
+1. text_a: 序列一
+2. text_b: 序列二
+3. question: 问题
+4. choices: 标签列表
+5. labels: 实际的标签索引
+
+还要有一个标签文件, 每行是一个标签.
+
 ### 2.3 模型微调
 
 推荐使用 PromptTrainer API 对模型进行微调，该 API 封装了提示定义功能，且继承自 [Trainer API ](https://github.com/PaddlePaddle/PaddleNLP/blob/develop/docs/trainer.md) 。只需输入模型、数据集等就可以使用 Trainer API 高效快速地进行预训练、微调等任务，可以一键启动多卡训练、混合精度训练、梯度累积、断点重启、日志显示等功能，Trainer API 还针对训练过程的通用训练配置做了封装，比如：优化器、学习率调度等。
