@@ -390,6 +390,8 @@ class ErnieModel(ErniePretrainedModel):
             # 只有一个输出时
             sequence_output = encoder_outputs
             pooled_output = self.pooler(sequence_output)
+            # sequence_output 的 shape 是 [batch_size, seq_len, hidden_size]
+            # pooled_output 的 shape 是 [batch_size, hidden_size]
             return (sequence_output, pooled_output)
         else:
             # 有多个输出时, sequence_output 是第一个
@@ -1349,7 +1351,7 @@ class UTC(ErniePretrainedModel):
             attention_mask (Tensor):
                 See :class:`ErnieModel`.
             omask_positions (Tensor of shape `(batch_size, max_option)`):
-                Masked positions of [O-MASK] tokens padded with 0. 这是候选项
+                Masked positions of [O-MASK] tokens padded with 0. 这是候选项的位置
             cls_positions (Tensor of shape `(batch_size)`):
                 Masked positions of the second [CLS] token.
             labels (Tensor of shape `(num_labels_in_batch,)`, optional):
@@ -1403,6 +1405,7 @@ class UTC(ErniePretrainedModel):
                 output = output + (outputs.hidden_states,)
             if output_attentions:
                 output = output + (output.attentions,)
+            # TODO: 奇怪, 为什么 loss 是 None, 都没有变化的可能
             # loss 都没改变, 这里肯定是 None. 只有一项输出的时候, 不要用元组.
             return ((loss,) + output) if loss is not None else (output[0] if len(output) == 1 else output)
 
