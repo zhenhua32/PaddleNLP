@@ -351,7 +351,7 @@ class ErnieModel(ErniePretrainedModel):
             )
             if past_key_values is not None:
                 batch_size = past_key_values[0][0].shape[0]
-                # 前几层都不要了, 全部用 0, shape 是 [batch_size, 1, 1, past_key_values_length]
+                # 前几层都用 0, shape 是 [batch_size, 1, 1, past_key_values_length]
                 past_mask = paddle.zeros([batch_size, 1, 1, past_key_values_length], dtype=attention_mask.dtype)
                 # 拼接到一起, shape 是 [batch_size, 1, 1, seq_len]. 当这里的时候, input_ids 的 shape 是 (batch_size, 1)
                 # 所以, 最后一个维度是 sequence_length - 1 + 1
@@ -360,10 +360,12 @@ class ErnieModel(ErniePretrainedModel):
         # For 2D attention_mask from tokenizer
         elif attention_mask.ndim == 2:
             attention_mask = paddle.unsqueeze(attention_mask, axis=[1, 2]).astype(paddle.get_default_dtype())
+            # 这里的意思是掩码的地方都是 -1e4
             attention_mask = (1.0 - attention_mask) * -1e4
 
         attention_mask.stop_gradient = True
 
+        # 获取嵌入输出
         embedding_output = self.embeddings(
             input_ids=input_ids,
             position_ids=position_ids,
@@ -374,6 +376,7 @@ class ErnieModel(ErniePretrainedModel):
         )
 
         self.encoder._use_cache = use_cache  # To be consistent with HF
+        # 编码器的输出
         encoder_outputs = self.encoder(
             embedding_output,
             src_mask=attention_mask,
@@ -382,11 +385,14 @@ class ErnieModel(ErniePretrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
+        # 返回输出格式
         if isinstance(encoder_outputs, type(embedding_output)):
+            # 只有一个输出时
             sequence_output = encoder_outputs
             pooled_output = self.pooler(sequence_output)
             return (sequence_output, pooled_output)
         else:
+            # 有多个输出时, sequence_output 是第一个
             sequence_output = encoder_outputs[0]
             pooled_output = self.pooler(sequence_output)
             if not return_dict:
