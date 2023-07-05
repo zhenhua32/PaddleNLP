@@ -87,6 +87,7 @@ class Template(nn.Layer):
         for key, value in kwargs.items():
             setattr(self, key, value)
         self.tokenizer = tokenizer
+        # 看下这个特殊的分词器
         self.prompt_tokenizer = MLMPromptTokenizer(tokenizer, max_length)
         self.set_prompt(prompt)
 
@@ -111,6 +112,7 @@ class Template(nn.Layer):
                 self._prompt = prompt
             self.do_truncate = self.create_truncation_sequence_from_prompt()
             self._check_template_special_tokens()
+            # 看下应该有哪些 example_keys
             self.example_keys = self.create_example_keys_from_prompt()
             self.token_types = self.create_token_type_sequence_from_prompt()
             self.positions = self.create_position_sequence_from_prompt()
@@ -259,22 +261,35 @@ class Template(nn.Layer):
         return example_keys
 
     def encode(self, example: Dict[str, Any]):
+        """
+        看下编码的过程
+        """
         input_text = self.build_inputs_with_prompt(example)
+        # 生成两个列表, 分别是输入的名称和输入的值
         input_names, input_values = ["text"], [input_text]
         for name in self.input_feature_names:
             input_names.append(name)
             input_values.append(getattr(self, name, None))
 
         inputs = []
+        # input_values 本身是个 list, 用了 *, 就是对其中的每一项都使用 zip 处理
+        # 然后每次 zip 会产生 N 个值. 所以 value 的长度就是 N. N 是 input_names 的长度
         for value in list(zip(*input_values)):
+            # 构建一个字典, 表示一个输入样本
             inputs.append(dict(zip(input_names, value)))
 
+        # 调用提示的分词器
         input_dict = self.prompt_tokenizer(inputs)
+        # 过滤数据, 只要 example_keys 中的字段
         unused_example = {k: v for k, v in example.items() if k not in self.example_keys}
 
+        # 合并字典
         return {**input_dict, **unused_example}
 
     def __call__(self, example: Dict[str, Any]):
+        """
+        调用过程
+        """
         return self.encode(example=example)
 
     @abstractmethod
