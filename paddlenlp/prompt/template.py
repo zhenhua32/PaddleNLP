@@ -131,12 +131,15 @@ class Template(nn.Layer):
         for part in self._prompt:
             prompt_attr.extend(list(part.keys()))
             if "add_prompt" in part:
+                # 如果有 add_prompt, 必须在 part["add_prompt"] 的值中使用 opt_token
                 opt_prompt = part["add_prompt"]
                 if self.opt_token not in opt_prompt:
                     raise ValueError("'{}' not found in option prompt.".format(self.opt_token))
             if "add_omask" in part:
+                # 检查 omask_token
                 self._check_omask_token()
         diff_attr = set(prompt_attr) - set(valid_attr)
+        # 要求模板中定义的属性都在 valid_attr 中
         if len(diff_attr) > 0:
             raise ValueError("Invalid attributes found in template: {}.".format(diff_attr))
         return True
@@ -151,6 +154,7 @@ class Template(nn.Layer):
     def _check_omask_token(self):
         omask_example = """
         Add '[O-MASK]' to tokenizer to use `add_omask`.
+        检查 [O-MASK] 是否在词汇表中
 
         Examples:
 
@@ -160,8 +164,10 @@ class Template(nn.Layer):
         model.resize_token_embeddings(len(tokenizer))
         ```"""
         if self.omask_token not in self.tokenizer.additional_special_tokens:
+            # 添加到词汇表中
             self.tokenizer.add_special_tokens({"additional_special_tokens": [self.omask_token]})
             return True
+            # 这是什么操作, 还要 raise, 关键是我看代码记录里, 前面的 return True 是先写的, raise 是后写的
             raise ValueError("'{}' not found in tokenizer.".format(self.omask_token) + omask_example)
         return True
 
@@ -213,28 +219,36 @@ class Template(nn.Layer):
         return inputs
 
     def create_token_type_sequence_from_prompt(self, prompt: Optional[List[Dict[str, Any]]] = None) -> List[int]:
+        """
+        创建 token_type_ids, 长度等同于 prompt
+        """
         prompt = self._prompt if prompt is None else prompt
         last_token_type = 0
         token_type_ids = []
         for part in prompt:
+            # 根据 prompt 中的 token_type 来更新
             if "token_type" in part:
                 last_token_type = part["token_type"]
             token_type_ids.append(last_token_type)
         return token_type_ids
 
     def create_position_sequence_from_prompt(self, prompt: Optional[List[Dict[str, Any]]] = None) -> List[int]:
+        """
+        类似的, 创建 position_ids, 长度等同于 prompt
+        """
         prompt = self._prompt if prompt is None else prompt
         position_ids = []
         for part in prompt:
             if "position" in part:
                 position_ids.append(part["position"])
             else:
+                # 没有就用 -1 代替
                 position_ids.append(-1)
         return position_ids
 
     def create_truncation_sequence_from_prompt(self, prompt: Optional[List[Dict[str, Any]]] = None) -> List[int]:
         """
-        定义 prompt 中每个部分是否需要截断
+        定义 prompt 中每个部分是否需要截断, 返回一个列表
         """
         prompt = self._prompt.copy() if prompt is None else prompt.copy()
         do_truncate = []
@@ -250,12 +264,17 @@ class Template(nn.Layer):
         return do_truncate
 
     def create_example_keys_from_prompt(self):
+        """
+        看下 example_keys 字段是怎么生成的
+        """
         example_keys = set()
         for part in self.prompt:
             if "text" in part:
                 example_keys.add(part["text"])
+            # 如果有选项, 且选项是个列表, 那么就把选项加进去
             if "options" in part and isinstance(part["options"], list):
                 example_keys.update(set(part["options"]))
+        # 必须要有文本字段
         if len(example_keys) == 0:
             raise ValueError('No `text` keyword in template: "{}", please check it again.'.format(self.prompt))
         return example_keys
