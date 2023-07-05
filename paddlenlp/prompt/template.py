@@ -145,6 +145,9 @@ class Template(nn.Layer):
         return True
 
     def _check_example_name(self, name: str, example: Dict[str, Any]):
+        """
+        要求字段名在 example 中
+        """
         if name not in example:
             raise ValueError(
                 "Unexpected value in template. Can not find keyword {} in example: {}".format(name, example)
@@ -175,6 +178,7 @@ class Template(nn.Layer):
         self, example: Dict[str, Any], prompt: Optional[List[Dict[str, Any]]] = None
     ) -> List[str]:
         """
+        看下怎么构建输入文本的
         Build input text sequences according to both prompt and example.
 
         Args:
@@ -186,6 +190,7 @@ class Template(nn.Layer):
         """
         inputs = self._prompt.copy() if prompt is None else prompt.copy()
 
+        # 遍历 prompt 的每一部分
         for index, part in enumerate(inputs):
             if "text" in part:
                 self._check_example_name(part["text"], example)
@@ -193,23 +198,34 @@ class Template(nn.Layer):
             elif "mask" in part:
                 if "length" not in part:
                     part["length"] = 1
+                # 用 mask_token 填充
                 inputs[index] = self.tokenizer.mask_token * part["length"]
             elif "sep" in part:
                 inputs[index] = self.tokenizer.sep_token
             elif "hard" in part:
+                # 硬编码的部分, 就是纯文本
                 inputs[index] = part["hard"]
             elif "options" in part:
+                # 选项
                 if not isinstance(part["options"], list):
+                    # 如果不是列表, 就用 example 中的字段名
                     self._check_example_name(part["options"], example)
                     labels = example[part["options"]]
+                    # 转换成 list
                     labels = [labels] if isinstance(labels, str) else labels
                 else:
                     labels = part["options"]
+
                 if "add_prompt" in part:
+                    # 如果有 add_prompt, 就将 add_prompt 中的 opt_token 替换成标签中的值
                     opt_prompt = part["add_prompt"]
                     labels = [opt_prompt.replace(self.opt_token, x) for x in labels]
+
                 if "add_omask" in part:
+                    # 如果有 add_omask, 就将 omask_token 添加到最前面
                     labels = [self.omask_token + x for x in labels]
+                
+                # 最后是直接拼接
                 inputs[index] = "".join(labels)
             else:
                 inputs[index] = part
@@ -265,7 +281,7 @@ class Template(nn.Layer):
 
     def create_example_keys_from_prompt(self):
         """
-        看下 example_keys 字段是怎么生成的
+        看下 example_keys 字段是怎么生成的, 就是其中的 text 和 options
         """
         example_keys = set()
         for part in self.prompt:
