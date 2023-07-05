@@ -35,10 +35,15 @@ class MLMPromptTokenizer(object):
         self.max_length = max_length
 
     def __call__(self, inputs: List[Dict[str, Any]]):
+        """
+        主要看看被调用时做了什么
+        """
         part_do_truncate = [part["do_truncate"] for part in inputs]
 
+        # 这是最后返回的结果
         encoded_inputs = defaultdict(list)
         option_length = None
+        # 位置编码从 1 开始，因为 0 是 [CLS]
         last_position = 1  # Id 0 denotes special token '[CLS]'.
         last_token_type = 0
         orig_input_ids = []
@@ -46,12 +51,15 @@ class MLMPromptTokenizer(object):
             # Create input_ids.
             soft_token_ids = part.get("soft_tokens", None)
             if soft_token_ids is None or len(soft_token_ids) == 1 and soft_token_ids[0] == 0:
+                # 如果没有 soft_tokens, 或者 soft_tokens 只有一个 0
                 orig_input_ids.append(
+                    # 就直接用分词器编码 part["text"] 的值
                     self.tokenizer.encode(part["text"], add_special_tokens=False, return_token_type_ids=False)[
                         "input_ids"
                     ]
                 )
             else:
+                # 直接用 soft_token_ids
                 orig_input_ids.append(soft_token_ids)
         max_lengths = self._create_max_lengths_from_do_truncate(orig_input_ids, part_do_truncate)
 
@@ -129,20 +137,28 @@ class MLMPromptTokenizer(object):
         """
         Create the max sequence length of each part, where the longest part is truncated first.
         """
+        # 当前总长度
         text_length = sum([len(x) for x in part_text])
+        # 特殊 token 的数量
         num_special_token = self.tokenizer.num_special_tokens_to_add()
+        # 当前可用的最大长度
         max_length = self.max_length - num_special_token
         if text_length <= max_length:
+            # 如果长度够用, 就直接返回
             return [None] * len(part_text)
         max_lengths = [None for _ in range(len(part_text))]
+        # 将是否截断从 bool 转为 int
         do_truncate = [int(x) for x in part_do_truncate]
 
         # Remove parts that can not be truncated.
         for index, part in enumerate(part_text):
+            # 如果当前部分是不可截断的, 就直接减去最大可用长度
             if not part_do_truncate[index]:
                 max_length -= len(part)
             else:
+                # 记录当前部分的长度
                 max_lengths[index] = len(part)
+        # 如果所有的部分都不可截断, 就直接返回
         if sum(do_truncate) == 0:
             logger.warning(
                 f"Can not truncate the sequence with length {text_length}. Set more `truncate` attributes as True."
@@ -152,19 +168,27 @@ class MLMPromptTokenizer(object):
         # Remove parts whose length is less than average maximum length of parts to truncate.
         has_short = True
         while has_short:
+            # 是否有更短的可以调整
             has_short = False
+            # 定义平均长度
             avg_max_length = max_length // sum(do_truncate)
             for index, part in enumerate(part_text):
+                # 那些可以截断的, 且长度小于平均长度的.
+                # 留下的就是可以截断的, 且长度大于平均长度的
                 if do_truncate[index] == 1 and len(part) <= avg_max_length:
+                    # 设置成不能截断
                     do_truncate[index] = 0
                     max_lengths[index] = len(part)
                     max_length -= len(part)
                     has_short = True
+        # 这个 while 循环跳出的额时候, 剩下的就是那些平均长度大于 max_length // sum(do_truncate) 的. 然后就截断它们
+        # 如果长度不足, 就报错
         if max_length < 0:
             raise AssertionError("Actual length has exceeded the maximum length. Check the implementation.")
         avg_max_length = max_length // sum(do_truncate)
         for index in range(len(part_text)):
             if do_truncate[index] == 1:
+                # 设置当前部分的最大长度
                 max_lengths[index] = min(avg_max_length, max_length)
                 max_length -= max_lengths[index]
                 if max_length < 0:

@@ -273,7 +273,7 @@ class Template(nn.Layer):
                 # 优先使用定义的
                 do_truncate.append(part["truncate"])
             elif "text" in part:
-                # 文本是需要的
+                # 文本是可截断的
                 do_truncate.append(True)
             else:
                 do_truncate.append(False)
