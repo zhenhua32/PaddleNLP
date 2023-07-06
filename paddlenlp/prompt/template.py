@@ -315,7 +315,7 @@ class Template(nn.Layer):
 
         # 调用提示的分词器
         input_dict = self.prompt_tokenizer(inputs)
-        # 过滤数据, 只要 example_keys 中的字段
+        # 过滤数据, 只要不在 example_keys 中的字段
         unused_example = {k: v for k, v in example.items() if k not in self.example_keys}
 
         # 合并字典
