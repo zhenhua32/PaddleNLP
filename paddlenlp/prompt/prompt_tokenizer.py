@@ -210,14 +210,20 @@ class MLMPromptTokenizer(object):
         return max_lengths
 
     def _create_attention_mask(self, input_ids: List[int], option_length: Union[int, None]):
+        """
+        创建注意力掩码
+        """
         if option_length is None:
             return None
         omask_id = self.tokenizer.convert_tokens_to_ids(self.omask_token)
         input_ids = np.array(input_ids)
+        # 这是个矩阵, shape 是 [len(input_ids), len(input_ids)]
         attention_mask = np.ones([len(input_ids), len(input_ids)])
+        # 都取 [0] 是因为 where 会返回一个元组
         omask_index = np.where(input_ids == omask_id)[0].tolist()
         cls_indices = np.where(input_ids == self.tokenizer.cls_token_id)[0]
         sep_indices = np.where(input_ids == self.tokenizer.sep_token_id)[0]
+        # 找一个最小的且在 omask_index 之后的 cls_index 和 sep_index
         cls_index = len(input_ids)
         for idx in cls_indices:
             if idx > omask_index[-1]:
@@ -228,19 +234,28 @@ class MLMPromptTokenizer(object):
             if idx > omask_index[-1]:
                 sep_index = idx
                 break
+        # opt 的开始和结束位置
         opt_begin = omask_index[0]
         opt_end = min(cls_index, sep_index)
+        # 整一段都要忽略
         attention_mask[opt_begin:opt_end, opt_begin:opt_end] = 0
         omask_index.append(opt_end)
         for opt_begin, opt_end in zip(omask_index[:-1], omask_index[1:]):
+            # 其中是选项文本的部分要保留
             attention_mask[opt_begin:opt_end, opt_begin:opt_end] = 1
+        # 这个就是将 attention_mask 中的 0 变成 -1e4, 1 变成 0
         attention_mask = (attention_mask - 1) * 1e4
         return attention_mask
 
     def _create_masked_positions(self, input_ids: List[int], soft_token_ids: List[int]):
+        """
+        创建掩码的位置
+        """
+        # 找出非 soft token 的位置
         non_soft_ids = np.array(input_ids) * (np.array(soft_token_ids) == 0)
         mask_id = self.tokenizer.mask_token_id
 
+        # 找出这些位置中的 mask token 的位置
         masked_positions = np.where(non_soft_ids == mask_id)[0]
         if masked_positions.shape[0] == 0:
             return None
