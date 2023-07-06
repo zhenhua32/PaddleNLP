@@ -222,7 +222,7 @@ class Template(nn.Layer):
                     labels = [opt_prompt.replace(self.opt_token, x) for x in labels]
 
                 if "add_omask" in part:
-                    # 如果有 add_omask, 就将 omask_token 添加到最前面
+                    # 如果有 add_omask, 就将 omask_token 添加到每个标签的最前面
                     labels = [self.omask_token + x for x in labels]
                 
                 # 最后是直接拼接

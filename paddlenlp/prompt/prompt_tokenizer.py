@@ -61,20 +61,25 @@ class MLMPromptTokenizer(object):
             else:
                 # 直接用 soft_token_ids
                 orig_input_ids.append(soft_token_ids)
+        # max_lengths 是个数组, 记录了每个部分的可用长度. None 表示不截断
         max_lengths = self._create_max_lengths_from_do_truncate(orig_input_ids, part_do_truncate)
 
+        # 遍历输入的每个部分
         for index, part in enumerate(inputs):
             # Create input_ids.
             soft_token_ids = part.get("soft_tokens", None)
             if soft_token_ids is None or len(soft_token_ids) == 1 and soft_token_ids[0] == 0:
+                # 截断到当前部分可用的最大长度
                 if self.tokenizer.truncation_side == "left":
                     input_ids = orig_input_ids[index][-max_lengths[index] :]
                 else:
                     input_ids = orig_input_ids[index][: max_lengths[index]]
+                # 即使没有 soft_token_ids, 也要用 0 填充
                 encoded_inputs["soft_token_ids"].append([0] * len(input_ids))
             else:
                 input_ids = soft_token_ids
                 encoded_inputs["soft_token_ids"].append(soft_token_ids)
+            # 然后是添加 input_ids, 并记录当前部分的长度
             encoded_inputs["input_ids"].append(input_ids)
             part_length = len(input_ids)
 
@@ -92,7 +97,7 @@ class MLMPromptTokenizer(object):
                 if name not in ["text", "soft_tokens", "positions", "token_types"]:
                     encoded_inputs[name].append([part[name]] * part_length)
 
-            # Record the length of options if exists.
+            # Record the length of options if exists. 记录选项的长度
             if self.omask_token in part["text"]:
                 option_length = len(input_ids)
 
@@ -110,32 +115,41 @@ class MLMPromptTokenizer(object):
     def _create_position_ids_from_part(self, input_ids: List[int], part: Dict[str, Any], last_position: int):
         """
         Create position ids from prompt for each part.
+        创建每个部分的位置编码
         """
         part_length = len(input_ids)
+        # 如果当前部分有 positions, 就用 positions
         if "positions" in part and part["positions"] >= 0:
             last_position = part["positions"]
+        # 如果输入文本中有 omask_token
         if self.omask_token in part["text"]:
             omask_id = self.tokenizer.convert_tokens_to_ids(self.omask_token)
+            # 找到 omask_token 的索引位置
             omask_index = [x for x in range(part_length) if input_ids[x] == omask_id]
             omask_index = [0] + omask_index
             position_ids = []
-            max_index = 0
+            max_index = 0  # 记录的是标签的最大长度
+            # 前后两个 omask_token 之间的
             for start_id, end_id in zip(omask_index[:-1], omask_index[1:]):
                 position_ids.extend(list(range(last_position, last_position + end_id - start_id)))
                 max_index = max(end_id - start_id, max_index)
+            # 如果数量不够, 就再来一次
             if len(position_ids) < part_length:
                 difference = part_length - len(position_ids)
                 position_ids.extend(range(last_position, last_position + difference))
                 max_index = max(difference, max_index)
             last_position += max_index
         else:
+            # 这种情况下, 就是简单的顺序编码
             position_ids = list(range(last_position, last_position + part_length))
             last_position += part_length
+        # 返回当前部分的位置编码, 和最后一个位置
         return position_ids, last_position
 
     def _create_max_lengths_from_do_truncate(self, part_text: List[str], part_do_truncate: List[bool]):
         """
         Create the max sequence length of each part, where the longest part is truncated first.
+        创建每个部分的最大序列长度.
         """
         # 当前总长度
         text_length = sum([len(x) for x in part_text])
@@ -233,12 +247,17 @@ class MLMPromptTokenizer(object):
         return masked_positions.tolist()
 
     def add_special_tokens(self, input_dict: Dict[str, Any]):
+        """
+        添加特殊的 token
+        """
         for key in input_dict:
             new_inputs = self.tokenizer.build_inputs_with_special_tokens(input_dict[key])
             if key != "input_ids":
+                # 获取特殊 token 的标记
                 special_mask = np.array(self.tokenizer.get_special_tokens_mask(input_dict[key]))
                 new_inputs = np.array(new_inputs)
                 # TODO (Huijuan): Use different ids according to specific keyword.
+                # 将是特殊 token 的部分设置为 0
                 new_inputs[special_mask == 1] = 0
                 new_inputs = new_inputs.tolist()
             input_dict[key] = new_inputs
@@ -246,6 +265,10 @@ class MLMPromptTokenizer(object):
 
     @staticmethod
     def join(input_dict):
+        """
+        因为 input_dict 的值是由很多部分组成的, 所以需要将嵌套的列表展平
+        """
         for key in input_dict:
+            # 将嵌套的列表展平
             input_dict[key] = list(itertools.chain(*input_dict[key]))
         return input_dict
