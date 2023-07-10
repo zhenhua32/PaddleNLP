@@ -346,8 +346,12 @@ class Template(nn.Layer):
 
     @staticmethod
     def extract_template_keywords(prompt: List[Dict[str, Any]]):
+        """
+        获取模板的关键字
+        """
         keywords = set()
         for part in prompt:
+            # 找出模板中每一部分的字段
             keywords.update(part.keys())
         return keywords
 

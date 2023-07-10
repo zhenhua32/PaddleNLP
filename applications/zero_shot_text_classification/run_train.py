@@ -88,7 +88,7 @@ def main():
     # Define the criterion. 定义损失
     criterion = UTCLoss()
 
-    # Initialize the prompt model. 初始化提示学习的模型
+    # Initialize the prompt model. 初始化提示学习的模型, 没有用到第三个参数 verbalizer
     prompt_model = PromptModelForSequenceClassification(
         model, template, None, freeze_plm=training_args.freeze_plm, freeze_dropout=training_args.freeze_dropout
     )

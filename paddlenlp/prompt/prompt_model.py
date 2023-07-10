@@ -30,6 +30,7 @@ from .verbalizer import Verbalizer
 
 class PromptModelForSequenceClassification(paddle.nn.Layer):
     """
+    用于分类任务的 PromptModel
     PromptModel for classification tasks.
     """
 
@@ -47,14 +48,17 @@ class PromptModelForSequenceClassification(paddle.nn.Layer):
         self.verbalizer = verbalizer
         self.freeze_plm = freeze_plm
         self.freeze_dropout = freeze_dropout
+        # 冻结参数
         if self.freeze_plm:
             for param in self.plm.parameters():
                 param.stop_gradient = True
             if self.freeze_dropout:
                 self.plm.eval()
+        # 获取参数名字
         self.forward_keys = signature(self.plm.forward)
         self._mask_token_id = self.template.tokenizer.mask_token_id
         self._pad_token_id = self.template.tokenizer.pad_token_id
+        # 前缀模板特殊处理
         if isinstance(self.template, PrefixTemplate):
             self.plm = self.template.process_model(self.plm)
             self.forward_keys.append("past_key_values")
@@ -72,6 +76,9 @@ class PromptModelForSequenceClassification(paddle.nn.Layer):
         return_dict: Optional[bool] = None,
         **kwargs: Dict[str, Any]
     ):
+        """
+        主要还是看看模型的前向传播过程
+        """
         return_dict = return_dict if return_dict is not None else False
         return_hidden_states = kwargs.get("return_hidden_states", False)
         input_dict = {
@@ -84,9 +91,13 @@ class PromptModelForSequenceClassification(paddle.nn.Layer):
             "encoder_ids": encoder_ids,
             **kwargs,
         }
+        # 批量处理数据, 很多模板类下这个都是空的, 即原样返回
         input_dict = self.template.process_batch(input_dict)
+        # 又合并了一遍
         input_dict = {**input_dict, **kwargs}
+        # 只需要模型的输入字段
         model_inputs = {k: input_dict[k] for k in input_dict if k in self.forward_keys}
+        # masked_positions 字段不能用
         if "masked_positions" in model_inputs:
             model_inputs.pop("masked_positions")
         model_outputs = self.plm(**model_inputs, return_dict=True)
@@ -100,6 +111,7 @@ class PromptModelForSequenceClassification(paddle.nn.Layer):
             logits = model_outputs.logits
             num_labels = self.plm.num_labels if self.plm.num_labels is not None else self.plm.num_labels
         elif isinstance(model_outputs, MultipleChoiceModelOutput):
+            # UTC 模型是这里
             logits = model_outputs.logits
             num_labels = -1
         else:
@@ -114,9 +126,11 @@ class PromptModelForSequenceClassification(paddle.nn.Layer):
                 loss_fct = paddle.nn.CrossEntropyLoss()
                 loss = loss_fct(logits.reshape((-1, num_labels)), labels.reshape((-1,)))
             else:
+                # UTC 模型选这里
                 loss_fct = paddle.nn.BCEWithLogitsLoss()
                 loss = loss_fct(logits, labels)
 
+        # 第一个字段是 logits
         if not return_dict:
             output = (logits,)
             if return_hidden_states:
@@ -135,6 +149,7 @@ class PromptModelForSequenceClassification(paddle.nn.Layer):
 
     def prompt_parameters(self):
         """
+        获取模板和 verbalizer 的参数. verbalizer 是标签的映射
         Get the parameters of template and verbalizer.
         """
         params = [p for p in self.template.parameters()]
@@ -143,7 +158,11 @@ class PromptModelForSequenceClassification(paddle.nn.Layer):
         return params
 
     def get_input_spec(self):
+        """
+        获取输入字段定义, 返回一个列表
+        """
         template_keywords = self.template.extract_template_keywords(self.template.prompt)
+        # 四个固定的输入字段
         input_spec = [
             InputSpec(shape=[None, None], dtype="int64", name="input_ids"),
             InputSpec(shape=[None, None], dtype="int64", name="token_type_ids"),

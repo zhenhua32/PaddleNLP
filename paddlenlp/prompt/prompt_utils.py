@@ -33,6 +33,7 @@ def signature(function):
     Obtain the input arguments of the given function.
     """
     sig = inspect.signature(function)
+    # 获取参数签名, 高级, 用了 inspect 模块, 运行时获取参数
     args = [p.name for p in sig.parameters.values() if p.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD]
     return args
 
