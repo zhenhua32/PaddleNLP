@@ -41,6 +41,7 @@ def signature(function):
 @dataclass
 class PromptDataCollatorWithPadding:
     """
+    没想到是用 dataclass 装饰的
     Data collator that will group inputs by keywords and dynamically
     pad the inputs to the longest sequence in the batch.
 
@@ -64,17 +65,26 @@ class PromptDataCollatorWithPadding:
     )
 
     def _convert_to_tensors(self, data):
+        """
+        支持两种格式, np 和 pd
+        """
         if self.return_tensors == "np":
             return np.array(data)
         else:
             return paddle.to_tensor(data)
 
     def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        看下调用流程
+        """
         batch = {}
         for key in features[0]:
+            # 只需要预定义的字段
             if key in self.default_model_input_names:
+                # 从 list[dict] 转换成 dict[list], 每个 key 是字段名
                 batch[key] = [b[key] for b in features]
 
+        # 填充数据, 最大长度是当前批次的最大长度
         batch = self.tokenizer.pad(
             batch,
             padding=self.padding,
@@ -85,36 +95,46 @@ class PromptDataCollatorWithPadding:
         )
         max_length = batch["input_ids"].shape[1]
         for key in features[0]:
+            # 开始处理那些不在 default_model_input_names 里面的字段
             if key not in self.default_model_input_names:
+                # 跳过字段不全的
                 values = [b[key] for b in features if key in b]
                 if len(values) < len(features):
                     continue
                 if key == "masked_positions":
                     new_values = []
                     for index, value in enumerate(values):
+                        # 这是给 value 里面的每个元素加上偏移量
                         value = np.array(value) + index * max_length
+                        # 然后抚平成单个列表
                         new_values.extend(value.tolist())
                     values = new_values
                 elif key == "attention_mask":
+                    # shape 是 [batch_size, 1, max_length, max_length]
                     new_values = np.ones([len(values), 1, max_length, max_length]) * -1e4
                     for index, value in enumerate(values):
                         length = len(value)
+                        # 更新有效的位置, 其他都是 -1e4
                         new_values[index][0, :length, :length] = value
                     values = new_values
                 elif key in ("soft_token_ids", "encoder_ids"):
+                    # 用 0 填充到最大长度
                     for index, value in enumerate(values):
                         values[index] = value + [0] * (max_length - len(value))
                 elif key in ("omask_positions"):
+                    # 最大长度是当前批次的最大长度
                     max_num_option = max([len(x) for x in values])
                     for index, value in enumerate(values):
                         values[index] = value + [0] * (max_num_option - len(value))
                 elif key == "labels":
+                    # 如果是列表, 就是多标签的格式, 即 one-hot
                     if isinstance(values[0], list):
                         max_num_label = max([len(x) for x in values])
                         for index, value in enumerate(values):
                             values[index] = value + [-100] * (max_num_label - len(value))
                 elif key != "cls_positions":
                     continue
+                # 转换类型
                 batch[key] = self._convert_to_tensors(values)
         return batch
 

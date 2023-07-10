@@ -26,17 +26,23 @@ class PromptTuningArguments(TrainingArguments):
     The arguments' subset for training loop during prompt tuning.
     """
 
+    # 最大序列长度
     max_seq_length: int = field(default=512, metadata={"help": "The maximum length of all input text."})
+    # 冻结预训练模型
     freeze_plm: bool = field(
         default=False, metadata={"help": "If True, the pretrained parameters won't be " "updated during tuning."}
     )
+    # 冻结 dropout, 只有当 freeze_plm 为 True 时才生效.
+    # 如果为 True, 后面的 __post_init__ 函数中会自动将 freeze_plm 设置为 True
     freeze_dropout: bool = field(
         default=False,
         metadata={
             "help": "If True, pretrained parameters won't be updated " "during tuning and the dropout is disabled."
         },
     )
+    # 是否保存预训练模型
     save_plm: bool = field(default=False, metadata={"help": "Whether to save pretrained model."})
+    # 使用 R-Drop 正则化策略
     use_rdrop: bool = field(
         default=False,
         metadata={
@@ -46,6 +52,7 @@ class PromptTuningArguments(TrainingArguments):
         },
     )
     alpha_rdrop: float = field(default=5.0, metadata={"help": "The KL-divergence loss weight alpha in R-Drop."})
+    # 是否使用标签一致性
     use_rgl: bool = field(
         default=False,
         metadata={
@@ -56,6 +63,7 @@ class PromptTuningArguments(TrainingArguments):
     )
     alpha_rgl: float = field(default=0.5, metadata={"help": "The weight of label consistency loss in RGL."})
 
+    # 提示学习参数的初始学习率
     ppt_learning_rate: float = field(
         default=1e-4, metadata={"help": "The initial learning rate of prompt parameters."}
     )
@@ -66,6 +74,7 @@ class PromptTuningArguments(TrainingArguments):
 
     def __post_init__(self):
         super(PromptTuningArguments, self).__post_init__()
+        # 需要配合使用
         if self.use_rgl and self.alpha_rgl == 0.0:
             logger.warning(
                 "Ignore `use_rgl` because `alpha_rgl` = 0. Please " "set `alpha_rgl` a positive float to use RGL loss."

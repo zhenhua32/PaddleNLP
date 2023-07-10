@@ -35,6 +35,7 @@ from .verbalizer import SoftVerbalizer
 
 class PromptTrainer(Trainer):
     """
+    提示学习的训练器
     PromptTrainer is a feature-complete training and eval loop for PaddleNLP
     on prompt-tuning.
     """
@@ -53,6 +54,7 @@ class PromptTrainer(Trainer):
         optimizers: Tuple[paddle.optimizer.Optimizer, paddle.optimizer.lr.LRScheduler] = (None, None),
     ):
         if args is None:
+            # 只有一个目录是必须的
             output_dir = "tmp_trainer"
             logger.info(
                 "No `TrainingArguments` passed, initialized with " "output_dir={} by default.".format(output_dir)

@@ -131,15 +131,21 @@ def main():
 
     # Training. 训练模型
     if training_args.do_train:
+        # 训练结果
         train_results = trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
+        # 指标
         metrics = train_results.metrics
+        # 保存模型
         trainer.save_model()
+        # 记录和保存指标
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
+        # 保存训练状态
         trainer.save_state()
 
     # Export. 导出模型
     if training_args.do_export:
+        # 定义输入字段
         input_spec = [
             InputSpec(shape=[None, None], dtype="int64", name="input_ids"),
             InputSpec(shape=[None, None], dtype="int64", name="token_type_ids"),
