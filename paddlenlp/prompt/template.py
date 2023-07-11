@@ -886,7 +886,10 @@ class AutoTemplate(object):
         prefix_dropout: float = 0.1,
         template_class: str = None,
     ):
-        # Default template if not defined.
+        """
+        自动创建模板
+        """
+        # Default template if not defined. 默认模板
         if prompt is None:
             prompt = "{'soft'}{'text': 'text_a'}{'mask'}"
 
@@ -894,12 +897,14 @@ class AutoTemplate(object):
             prompt = Template.parse_template_string(prompt)
         template_keywords = Template.extract_template_keywords(prompt)
 
+        # 补全 text 和 mask 字段
         # Complement simplified template as ManualTemplate-style in form.
         if "text" not in template_keywords:
             prompt = [{"text": cls.default_text_keyword}] + prompt
             if "mask" not in template_keywords:
                 prompt = prompt + [{"mask": None}]
 
+        # 获取对应的模板类
         if template_class is None:
             if "prefix" in template_keywords:
                 template_class = "PrefixTemplate"
@@ -908,6 +913,7 @@ class AutoTemplate(object):
             else:
                 template_class = "ManualTemplate"
 
+        # 根据不同的模板类初始化
         # Choose Template according to template keywords.
         if template_class == "PrefixTemplate":
             return PrefixTemplate(
@@ -933,12 +939,17 @@ class AutoTemplate(object):
     def load_from(
         cls, data_path: os.PathLike, tokenizer: PretrainedTokenizer, max_length: int, model: PretrainedModel = None
     ):
+        """
+        加载模板
+        """
         template_config_file = os.path.join(data_path, TEMPLATE_CONFIG_FILE)
         if not os.path.isfile(template_config_file):
             raise ValueError("{} not found under {}".format(TEMPLATE_CONFIG_FILE, data_path))
         with open(template_config_file, "r") as fp:
+            # 一行一个配置吗?
             config = [x.strip() for x in fp]
             prompt = json.loads(config[0])
+            # 获取模板类
             if len(config) > 1:
                 template_class = json.loads(config[1])["class"]
             else:
@@ -946,8 +957,10 @@ class AutoTemplate(object):
         template = cls.create_from(
             prompt=prompt, tokenizer=tokenizer, max_length=max_length, model=model, template_class=template_class
         )
+        # 参数文件
         template_param_file = os.path.join(data_path, TEMPLATE_PARAMETER_FILE)
         if os.path.isfile(template_param_file):
+            # 加载参数
             template.set_state_dict(paddle.load(template_param_file))
         return template
 
@@ -998,7 +1011,7 @@ class UTCTemplate(Template):
 
     def encode(self, example: Dict[str, Any], use_mask: bool = False):
         """
-        编码
+        编码, 是主入口, 就是 __call__
         """
         input_dict = super(UTCTemplate, self).encode(example)
 
