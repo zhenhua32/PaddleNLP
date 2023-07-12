@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2023-07-12T13:51:04.767Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.67" etag="V4M5tgM0evPL5EafdBTG" version="21.5.2" type="github">
+<mxfile host="app.diagrams.net" modified="2023-07-12T13:51:38.827Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.67" etag="uqbyNodxTeIZdJyBXRFM" version="21.5.2" type="github">
   <diagram name="第 1 页" id="Vh6EjBxzwPC3c47uIkbJ">
     <mxGraphModel dx="990" dy="668" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
@@ -76,8 +76,14 @@
         <mxCell id="0eXLprFVtOaUyR0fxN4K-17" value="&lt;div style=&quot;&quot;&gt;&lt;div&gt;&lt;font color=&quot;#000000&quot;&gt;train 流程&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font color=&quot;#000000&quot;&gt;1. 加载检查点&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font color=&quot;#000000&quot;&gt;2. 获取训练数据加载器, 并计算总批次大小, 总训练步数等&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font color=&quot;#000000&quot;&gt;3. 创建优化器和学习率调节器&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font color=&quot;#000000&quot;&gt;4. 打印训练参数&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font color=&quot;#000000&quot;&gt;5. 检查是否要从检查点继续训练, 并跳过已训练的 epochs&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font color=&quot;#000000&quot;&gt;6. 更新 self.callback_handler 和 self.state&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font color=&quot;#000000&quot;&gt;7. 开始迭代数据, 进行训练&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font color=&quot;#000000&quot;&gt;8. 训练结束了, 可选加载最好的模型, 返回 TrainOutput&lt;/font&gt;&lt;/div&gt;&lt;/div&gt;" style="html=1;shadow=0;dashed=0;shape=mxgraph.bootstrap.rrect;rSize=5;strokeColor=#999999;strokeWidth=1;fillColor=#FFFFFF;fontColor=#6C767D;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=10;fontSize=14;spacing=10;" vertex="1" parent="1">
           <mxGeometry x="490" y="530" width="400" height="270" as="geometry" />
         </mxCell>
+        <mxCell id="0eXLprFVtOaUyR0fxN4K-22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="0eXLprFVtOaUyR0fxN4K-18" target="0eXLprFVtOaUyR0fxN4K-21">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
         <mxCell id="0eXLprFVtOaUyR0fxN4K-18" value="training_step" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
           <mxGeometry x="280" y="820" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="0eXLprFVtOaUyR0fxN4K-21" value="compute_loss" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="930" width="120" height="60" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
