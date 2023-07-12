@@ -92,6 +92,9 @@ class PromptTrainer(Trainer):
             self.rdrop_criterion = RDropLoss()
 
     def _get_model(self):
+        """
+        获取模型
+        """
         model = self.model
         if isinstance(model, paddle.DataParallel):
             model = model._layers
@@ -99,6 +102,9 @@ class PromptTrainer(Trainer):
 
     @property
     def template(self):
+        """
+        获取模板
+        """
         return self._get_model().template
 
     @template.setter
@@ -122,17 +128,24 @@ class PromptTrainer(Trainer):
         setattr(self._get_model(), "plm", model)
 
     def _map_dataset(self, dataset: MapDataset):
+        """
+        主要就是对每个 example 调用 template 方法.
+        """
         if dataset is None:
             return None
         if not isinstance(dataset, MapDataset):
             raise ValueError("Expected `MapDataset` but received {}.".format(type(dataset)))
 
+        # 调用模板
         def encode_with_template(example):
             return self.template(example)
 
         return dataset.map(encode_with_template)
 
     def _prepare_input(self, inputs: Dict):
+        """
+        原样返回
+        """
         return inputs
 
     def _save(
@@ -141,8 +154,12 @@ class PromptTrainer(Trainer):
         state_dict: Dict[str, Any] = None,
         merge_tensor_parallel: Optional[bool] = True,
     ):
+        """
+        保存模型
+        """
         super(PromptTrainer, self)._save(output_dir, state_dict, merge_tensor_parallel)
         output_dir = output_dir if output_dir is not None else self.args.output_dir
+        # 保存其他三项
         if self.template:
             self.template.save(output_dir)
         if self.verbalizer is not None:
@@ -164,25 +181,35 @@ class PromptTrainer(Trainer):
         super(PromptTrainer, self).load_state_dict_from_checkpoint(resume_from_checkpoint)
 
     def get_test_dataloader(self, test_dataset):
+        """
+        获取测试集
+        """
         test_dataset = self._map_dataset(test_dataset)
         return super(PromptTrainer, self).get_test_dataloader(test_dataset)
 
     def get_eval_dataloader(self, eval_dataset: Optional[Dataset] = None) -> DataLoader:
+        """
+        获取评估集
+        """
         if eval_dataset is not None:
             eval_dataset = self._map_dataset(eval_dataset)
         return super(PromptTrainer, self).get_eval_dataloader(eval_dataset)
 
     def create_optimizer(self, lr_scheduler=None):
         """
+        初始化优化器
         Setup the optimizer for both model and prompt parameters.
         """
         if self.optimizer is None:
+            # 获取优化器类和参数
             optim_cls, optim_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
 
+            # 获取 plm 的可训练参数
             plm_parameters = []
             if not self.args.freeze_plm:
                 plm_parameters.extend([p for p in self._get_model().plm.parameters() if not p.stop_gradient])
 
+            # 获取模板和 verbalizer 的可训练参数
             ppt_parameters = []
             if self.template is not None:
                 ppt_parameters.extend([x for n, x in self.template.named_parameters() if not x.stop_gradient])
@@ -196,11 +223,13 @@ class PromptTrainer(Trainer):
                 else:
                     ppt_parameters.extend([p for n, p in self.verbalizer.parameters()])
 
+            # 获取需要衰减的参数
             decay_parameters = [
                 p.name for n, p in self._get_model().named_parameters() if not any(nd in n for nd in ["bias", "norm"])
             ]
 
             if len(plm_parameters) > 0:
+                # ppt_lr 是除出来的, 是倍数
                 ppt_lr = self.args.ppt_learning_rate / self.args.learning_rate
                 lr = self.lr_scheduler if lr_scheduler is None else lr_scheduler
                 if len(ppt_parameters) > 0:
@@ -218,6 +247,7 @@ class PromptTrainer(Trainer):
                 else:
                     params = plm_parameters
             else:
+                # 没有 plm_parameters 的情况下
                 if self.args.max_steps > 0:
                     max_steps = self.args.max_steps
                 else:
@@ -234,6 +264,7 @@ class PromptTrainer(Trainer):
                 lr = self.lr_scheduler
                 params = ppt_parameters
 
+            # lr 其实是个 scheduler
             self.optimizer = optim_cls(
                 learning_rate=lr,
                 apply_decay_param_fun=lambda x: x in decay_parameters,

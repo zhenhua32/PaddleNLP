@@ -444,6 +444,7 @@ class Trainer:
     ):
         """
         Main training entry point.
+        主训练入口, 看看主线流程有哪些
 
         Args:
             resume_from_checkpoint (`str` or `bool`, *optional*):
@@ -455,18 +456,22 @@ class Trainer:
                 gathering predictions for evaluation during the training.
         """
         args = self.args
+        # 更新标志位
         self.is_in_train = True
         resume_from_checkpoint = None if not resume_from_checkpoint else resume_from_checkpoint
 
+        # 内存追踪, 先不用看
         # memory metrics - must set up as early as possible
         self._memory_tracker.start()
 
         # Load potential model checkpoint
         if isinstance(resume_from_checkpoint, bool) and resume_from_checkpoint:
+            # 如果是 bool 类型的, 且是 True, 就加载最后一个 checkpoint
             resume_from_checkpoint = get_last_checkpoint(args.output_dir)
             if resume_from_checkpoint is None:
                 raise ValueError(f"No valid checkpoint found in output directory ({args.output_dir})")
 
+        # 从检查点还原, 先不用看细节
         if resume_from_checkpoint is not None:
             if isinstance(self.model, LoRAModel):
                 weight_name = LORA_WEIGHT_FILE_NAME
@@ -492,10 +497,13 @@ class Trainer:
             # release memory
             del state_dict
 
+        # 获取训练数据加载器
         train_dataloader = self.get_train_dataloader()
 
+        # 计算总的 batch_size
         total_train_batch_size = args.train_batch_size * args.gradient_accumulation_steps * args.dataset_world_size
         len_dataloader = None
+        # 根据 train_dataloader 是否是有长度的, 更新 max_steps 和 num_train_epochs 等字段
         if has_length(train_dataloader):
             len_dataloader = len(train_dataloader)
             num_update_steps_per_epoch = len(train_dataloader) // args.gradient_accumulation_steps
@@ -538,8 +546,10 @@ class Trainer:
         delay_optimizer_creation = False
 
         if not delay_optimizer_creation:
+            # 创建优化器和学习率调度器
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
 
+        # 记录训练状态
         self.state = TrainerState()
 
         model = self._wrap_model(self.model_wrapped)
@@ -554,6 +564,7 @@ class Trainer:
         # Check if saved optimizer or scheduler states exist
         self._load_optimizer_and_scheduler(resume_from_checkpoint)
 
+        # 打印训练参数等
         logger.info("***** Running training *****")
         logger.info(f"  Num examples = {num_examples}")
         logger.info(f"  Num Epochs = {num_train_epochs}")
@@ -581,6 +592,7 @@ class Trainer:
                 # so, the trainable numel is a little bigger than real.
                 logger.info(f"  Number of trainable parameters = {trainable_numel} (all devices, roughly)")
 
+        # 初始化状态
         start_time = time.time()
         self._globalstep_last_start_time = time.time()
         self.state.epoch = 0
@@ -588,7 +600,7 @@ class Trainer:
         steps_trained_in_current_epoch = 0
         steps_trained_progress_bar = None
 
-        # Check if continuing training from a checkpoint
+        # Check if continuing training from a checkpoint 是否从检查点继续训练, ignore_data_skip 为 False 的时候会跳过已经训练的 epochs
         if resume_from_checkpoint is not None and os.path.isfile(
             os.path.join(resume_from_checkpoint, TRAINER_STATE_NAME)
         ):
@@ -631,6 +643,7 @@ class Trainer:
             len(epoch_iterator) if len_dataloader is not None else args.max_steps * args.gradient_accumulation_steps
         )
 
+        # 注册回调和 state
         self.callback_handler.model = self.model
         self.callback_handler.optimizer = self.optimizer
         self.callback_handler.lr_scheduler = self.lr_scheduler
@@ -652,6 +665,7 @@ class Trainer:
 
             npu_accelerate_plugin(self.optimizer)
 
+        # 开始迭代数据进行训练了
         for epoch in range(epochs_trained, num_train_epochs):
             if isinstance(train_dataloader, paddle.io.DataLoader) and isinstance(
                 train_dataloader.batch_sampler, DistributedBatchSampler
@@ -661,6 +675,7 @@ class Trainer:
             step = -1
             self.control = self.callback_handler.on_epoch_begin(args, self.state, self.control)
 
+            # 遍历每个轮次中的所有数据
             for step, inputs in enumerate(epoch_iterator):
                 self.callback_handler.on_load_data_end(args, self.state, self.control, inputs=inputs)
                 # Skip past any already trained steps if resuming training
@@ -714,6 +729,7 @@ class Trainer:
                 # stage1. the same as ddp
                 # stage2. manualy collect gradient on dp group
 
+                # 前面的都没看懂, 这里应该是使用 inputs 数据做了单步训练
                 if is_no_sync:
                     # Avoid unnecessary DDP synchronization since there will be no backward pass on this example.
                     with model.no_sync():
@@ -758,7 +774,7 @@ class Trainer:
                             elif p.grad is not None:
                                 p.grad = p.grad.scale(1.0 / self.args.gradient_accumulation_steps)
 
-                    # Optimizer step
+                    # Optimizer step 优化器步骤
                     self.callback_handler.on_optimizer_begin(
                         args, self.state, self.control, scaler=self.scaler if self.do_grad_scaling else None
                     )
@@ -788,13 +804,16 @@ class Trainer:
                     self.state.epoch = epoch + (step + 1) / steps_in_epoch
 
                     self.control = self.callback_handler.on_step_end(args, self.state, self.control)
+                    # 或许要运行下评估器
                     self._maybe_log_save_evaluate(tr_loss, model, epoch, ignore_keys_for_eval, inputs=inputs)
                 else:
                     self.control = self.callback_handler.on_substep_end(args, self.state, self.control)
 
+                # 要停止训练这个 epoch 了
                 if self.control.should_epoch_stop or self.control.should_training_stop:
                     break
 
+            # 如果一步都没有训练, 警告
             if step < 0:
                 logger.warning(
                     f"There seems to be not a single sample in your epoch_iterator, stopping training at step"
@@ -806,6 +825,7 @@ class Trainer:
             self.control = self.callback_handler.on_epoch_end(args, self.state, self.control)
             self._maybe_log_save_evaluate(tr_loss, model, epoch, ignore_keys_for_eval, inputs=inputs)
 
+            # 要停止整个训练
             if self.control.should_training_stop:
                 break
 
@@ -813,8 +833,10 @@ class Trainer:
             # Clean the state at the end of training
             delattr(self, "_past")
 
+        # 训练结束了
         logger.info("\nTraining completed. \n")
         if args.load_best_model_at_end and self.state.best_model_checkpoint is not None:
+            # 加载效果最好的模型
             if args.local_rank != -1:
                 dist.barrier()
 
@@ -1476,9 +1498,11 @@ class Trainer:
 
     def compute_loss(self, model, inputs, return_outputs=False):
         """
+        计算损失, 默认情况下所有模型返回的第一个元素应该是损失
         How the loss is computed by Trainer. By default, all models return the loss in the first element.
         Subclass and override for custom behavior.
         """
+        # 获取标签
         if self.criterion is not None:
             if "labels" in inputs:
                 labels = inputs.pop("labels")
@@ -1494,8 +1518,10 @@ class Trainer:
         else:
             labels = None
 
+        # 前向传播
         outputs = model(**inputs)
 
+        # 计算损失
         if self.criterion is not None:
             loss = self.criterion(outputs, labels)
             outputs = (loss, outputs)
@@ -1505,6 +1531,7 @@ class Trainer:
         if self.args.past_index >= 0:
             self._past = outputs[self.args.past_index]
 
+        # 又从 outputs 中取出 loss
         # We don't use .loss here since the model may return tuples instead of ModelOutput.
         loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
 
@@ -1512,6 +1539,7 @@ class Trainer:
 
     def training_step(self, model: nn.Layer, inputs: Dict[str, Union[paddle.Tensor, Any]]) -> paddle.Tensor:
         """
+        在一个batch 的输入上执行一步训练
         Perform a training step on a batch of inputs.
 
         Subclass and override to inject custom behavior.
@@ -1532,19 +1560,23 @@ class Trainer:
             return self.training_pipeline_step(model, inputs)
 
         model.train()
+        # 准备输入数据
         inputs = self._prepare_inputs(inputs)
 
+        # 计算损失
         with self.autocast_smart_context_manager():
             loss = self.compute_loss(model, inputs)
 
         if self.args.gradient_accumulation_steps > 1:
             loss = loss / self.args.gradient_accumulation_steps
 
+        # 反向传播
         if self.do_grad_scaling:
             self.scaler.scale(loss).backward()
         else:
             loss.backward()
 
+        # 返回损失
         return loss.detach()
 
     def training_pipeline_step(self, model: nn.Layer, inputs: Dict[str, Union[paddle.Tensor, Any]]) -> paddle.Tensor:
