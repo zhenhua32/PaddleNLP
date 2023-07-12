@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2023-07-11T14:57:52.459Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.67" etag="1eolT8A6i7N8GUdRc-QB" version="21.5.2" type="github">
+<mxfile host="app.diagrams.net" modified="2023-07-12T12:56:51.731Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Edg/114.0.1823.67" etag="T4CbZsqVKWyUqFaeNinU" version="21.5.2" type="github">
   <diagram name="第 1 页" id="Vh6EjBxzwPC3c47uIkbJ">
     <mxGraphModel dx="990" dy="668" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
@@ -65,8 +65,8 @@
         <mxCell id="0eXLprFVtOaUyR0fxN4K-12" value="train" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
           <mxGeometry x="280" y="700" width="120" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="0eXLprFVtOaUyR0fxN4K-17" value="&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;color: rgb(0, 0, 0); background-color: initial;&quot;&gt;train 流程&lt;/span&gt;&lt;/div&gt;&lt;font color=&quot;#000000&quot;&gt;&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;1. 加载检查点&lt;/span&gt;&lt;/div&gt;&lt;/font&gt;" style="html=1;shadow=0;dashed=0;shape=mxgraph.bootstrap.rrect;rSize=5;strokeColor=#999999;strokeWidth=1;fillColor=#FFFFFF;fontColor=#6C767D;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=10;fontSize=14;spacing=10;" vertex="1" parent="1">
-          <mxGeometry x="490" y="450" width="280" height="370" as="geometry" />
+        <mxCell id="0eXLprFVtOaUyR0fxN4K-17" value="&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;color: rgb(0, 0, 0); background-color: initial;&quot;&gt;train 流程&lt;/span&gt;&lt;/div&gt;&lt;font color=&quot;#000000&quot;&gt;&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;1. 加载检查点&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;2. 获取训练数据加载器, 并计算总批次大小, 总训练步数等&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;3. 创建优化器和学习率调节器&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;4.&amp;nbsp;&lt;/span&gt;&lt;/div&gt;&lt;/font&gt;" style="html=1;shadow=0;dashed=0;shape=mxgraph.bootstrap.rrect;rSize=5;strokeColor=#999999;strokeWidth=1;fillColor=#FFFFFF;fontColor=#6C767D;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=10;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="490" y="450" width="400" height="370" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
