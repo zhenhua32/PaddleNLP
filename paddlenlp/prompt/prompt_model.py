@@ -100,6 +100,7 @@ class PromptModelForSequenceClassification(paddle.nn.Layer):
         # masked_positions 字段不能用
         if "masked_positions" in model_inputs:
             model_inputs.pop("masked_positions")
+        # 先调用 plm 模型
         model_outputs = self.plm(**model_inputs, return_dict=True)
         if isinstance(model_outputs, MaskedLMOutput):
             if self.verbalizer is not None:

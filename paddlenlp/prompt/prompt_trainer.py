@@ -278,8 +278,10 @@ class PromptTrainer(Trainer):
 
     def compute_loss(self, model, inputs, return_outputs=False):
         """
+        计算每个 batch 的 loss
         Compute the total loss for every batch.
         """
+        # 获取标签
         if "labels" not in inputs:
             raise ValueError("Fail to compute loss as `labels` not in {}.".format(inputs))
         labels = inputs["labels"]

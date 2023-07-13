@@ -1012,6 +1012,7 @@ class UTCTemplate(Template):
     def encode(self, example: Dict[str, Any], use_mask: bool = False):
         """
         编码, 是主入口, 就是 __call__
+        看看是在哪里调用了这个 UTCTemplate 类, 其实就是在数据集处理部分, 即 PromptTrainer._map_dataset 函数里
         """
         input_dict = super(UTCTemplate, self).encode(example)
 

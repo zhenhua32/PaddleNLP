@@ -1456,6 +1456,7 @@ class Trainer:
         Prepare `inputs` before feeding them to the model, converting them to tensors if they are not already and
         handling potential state.
         """
+        # 准备输入数据
         inputs = self._prepare_input(inputs)
         if self.args.past_index >= 0 and self._past is not None:
             inputs["mems"] = self._past
