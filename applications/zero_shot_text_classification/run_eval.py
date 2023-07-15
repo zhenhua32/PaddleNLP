@@ -69,6 +69,7 @@ def main():
         model, template, None, freeze_plm=training_args.freeze_plm, freeze_dropout=training_args.freeze_dropout
     )
     if model_args.model_path is not None:
+        # 加载已训练的模型, 这里需要的是 model_state.pdparams 文件
         model_state = paddle.load(os.path.join(model_args.model_path, "model_state.pdparams"))
         prompt_model.set_state_dict(model_state)
 
@@ -109,13 +110,19 @@ def main():
         compute_metrics=compute_metrics_single_label if data_args.single_label else compute_metrics,
     )
 
+    # 感觉前面和 run_train.py 是一样的
+
     if data_args.test_path is not None:
+        # 调用预测方法
         test_ret = trainer.predict(test_ds)
+        # 写入预测的指标
         trainer.log_metrics("test", test_ret.metrics)
         with open(os.path.join(training_args.output_dir, "test_metric.json"), "w", encoding="utf-8") as fp:
             json.dump(test_ret.metrics, fp)
 
+        # 写入预测结果
         with open(os.path.join(training_args.output_dir, "test_predictions.json"), "w", encoding="utf-8") as fp:
+            # 单标签结果
             if data_args.single_label:
                 preds = paddle.nn.functional.softmax(paddle.to_tensor(test_ret.predictions), axis=-1)
                 for index, pred in enumerate(preds):
@@ -124,6 +131,7 @@ def main():
                     result["probs"] = pred[result["labels"]].item()
                     fp.write(json.dumps(result, ensure_ascii=False) + "\n")
             else:
+                # 多标签结果
                 preds = paddle.nn.functional.sigmoid(paddle.to_tensor(test_ret.predictions))
                 for index, pred in enumerate(preds):
                     result = {"id": index}
