@@ -95,6 +95,9 @@ def main():
 
     # Define the metric function.
     def compute_metrics_single_label(eval_preds):
+        """
+        计算单标签的准确率
+        """
         labels = paddle.to_tensor(eval_preds.label_ids, dtype="int64")
         preds = paddle.to_tensor(eval_preds.predictions)
         preds = paddle.nn.functional.softmax(preds, axis=-1)
@@ -106,11 +109,15 @@ def main():
         return {"accuracy": acc}
 
     def compute_metrics(eval_preds):
+        """
+        计算多标签的准确率
+        """
         labels = paddle.to_tensor(eval_preds.label_ids, dtype="int64")
         preds = paddle.to_tensor(eval_preds.predictions)
         preds = paddle.nn.functional.sigmoid(preds)
         preds = preds[labels != -100].numpy()
         labels = labels[labels != -100].numpy()
+        # 阈值默认是 threshold=0.5
         preds = preds > data_args.threshold
         micro_f1 = f1_score(y_pred=preds, y_true=labels, average="micro")
         macro_f1 = f1_score(y_pred=preds, y_true=labels, average="macro")

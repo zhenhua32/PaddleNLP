@@ -5,7 +5,6 @@ import sys
 # 尝试覆盖掉已经安装的 paddlenlp
 # sys.path.insert(0, r"G:\code\github\PaddleNLP")
 os.environ["PYTHONPATH"] = r"G:\code\github\PaddleNLP"
-# TODO: 运行下看看
 
 cur_dir = os.path.dirname(__file__)
 model_dir = "utc-base"
@@ -32,7 +31,7 @@ cmd_list = [
     "--do_train",
     "--do_eval",
     "--do_export",
-    f"--export_model_dir={output_dir}",
+    f"--export_model_dir={output_dir}/export_model",
     "--overwrite_output_dir",
     "--disable_tqdm=True",
     "--metric_for_best_model=macro_f1",

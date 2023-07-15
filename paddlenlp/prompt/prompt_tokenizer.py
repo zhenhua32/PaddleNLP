@@ -212,6 +212,7 @@ class MLMPromptTokenizer(object):
     def _create_attention_mask(self, input_ids: List[int], option_length: Union[int, None]):
         """
         创建注意力掩码
+        主要是对选项部分进行处理, 每一行如果是选项, 就会将其中的选项文本部分变成0, 剩下的变成 -1e4. 其他的行都是 0
         """
         if option_length is None:
             return None
@@ -223,7 +224,8 @@ class MLMPromptTokenizer(object):
         omask_index = np.where(input_ids == omask_id)[0].tolist()
         cls_indices = np.where(input_ids == self.tokenizer.cls_token_id)[0]
         sep_indices = np.where(input_ids == self.tokenizer.sep_token_id)[0]
-        # 找一个最小的且在 omask_index 之后的 cls_index 和 sep_index
+        # 找一个最小的且在 omask_index 之后的 cls_index 和 sep_index.
+        # cls_index 从最大的开始
         cls_index = len(input_ids)
         for idx in cls_indices:
             if idx > omask_index[-1]:
