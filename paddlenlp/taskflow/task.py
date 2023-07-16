@@ -53,6 +53,7 @@ class Task(metaclass=abc.ABCMeta):
         self._custom_model = False
         self._param_updated = False
 
+        # 默认的线程数为 CPU 核心数的一半
         self._num_threads = self.kwargs["num_threads"] if "num_threads" in self.kwargs else math.ceil(cpu_count() / 2)
         self._infer_precision = self.kwargs["precision"] if "precision" in self.kwargs else "fp32"
         # Default to use Paddle Inference
@@ -200,11 +201,13 @@ class Task(metaclass=abc.ABCMeta):
 
     def _prepare_static_mode(self):
         """
+        准备静态模型
         Construct the input data and predictor in the PaddlePaddele static mode.
         """
         if paddle.get_device() == "cpu":
             self._config.disable_gpu()
             self._config.enable_mkldnn()
+            # CPU 上的 int8
             if self._infer_precision == "int8":
                 # EnableMKLDNN() only works when IR optimization is enabled.
                 self._config.switch_ir_optim(True)
@@ -214,6 +217,7 @@ class Task(metaclass=abc.ABCMeta):
             self._config.disable_gpu()
             self._config.enable_custom_device("npu", self.kwargs["device_id"])
         else:
+            # 这里是 GPU 的
             if self._infer_precision == "int8":
                 logger.info(
                     ">>> [InferBackend] It is a INT8 model which is not yet supported on gpu, use FP32 to inference here ..."
@@ -234,24 +238,31 @@ class Task(metaclass=abc.ABCMeta):
         if self.model == "uie-data-distill-gp":
             self._config.enable_memory_optim(False)
 
+        # 初始化预测器
         self.predictor = paddle.inference.create_predictor(self._config)
+        # 输入字段名
         self.input_names = [name for name in self.predictor.get_input_names()]
         self.input_handles = [self.predictor.get_input_handle(name) for name in self.predictor.get_input_names()]
         self.output_handle = [self.predictor.get_output_handle(name) for name in self.predictor.get_output_names()]
 
     def _prepare_onnx_mode(self):
+        """
+        准备 onnx 格式的模型
+        """
         try:
             import onnx
             import onnxruntime as ort
             import paddle2onnx
             from onnxconverter_common import float16
         except ImportError:
+            # 这里其实应该直接抛出异常的, 毕竟不装这些依赖就不能推理
             logger.warning(
                 "The inference precision is change to 'fp32', please install the dependencies that required for 'fp16' inference, pip install onnxruntime-gpu onnx onnxconverter-common"
             )
         if self.export_type is None:
             onnx_dir = os.path.join(self._task_path, "onnx")
         else:
+            # 兼容多模态的模型
             # Compatible multimodal model for saving image and text path
             onnx_dir = os.path.join(self._task_path, "onnx", self.export_type)
 
@@ -259,6 +270,7 @@ class Task(metaclass=abc.ABCMeta):
             os.mkdir(onnx_dir)
         float_onnx_file = os.path.join(onnx_dir, "model.onnx")
         if not os.path.exists(float_onnx_file) or self._param_updated:
+            # 将模型转换成 onnx 格式
             onnx_model = paddle2onnx.command.c_paddle_to_onnx(
                 model_file=self._static_model_file,
                 params_file=self._static_params_file,
@@ -267,6 +279,7 @@ class Task(metaclass=abc.ABCMeta):
             )
             with open(float_onnx_file, "wb") as f:
                 f.write(onnx_model)
+        # 还有一个支持 fp16 精度的
         fp16_model_file = os.path.join(onnx_dir, "fp16_model.onnx")
         if not os.path.exists(fp16_model_file) or self._param_updated:
             onnx_model = onnx.load_model(float_onnx_file)
@@ -276,13 +289,16 @@ class Task(metaclass=abc.ABCMeta):
         sess_options = ort.SessionOptions()
         sess_options.intra_op_num_threads = self._num_threads
         sess_options.inter_op_num_threads = self._num_threads
+        # 原来是在这里初始化 predictor 的, 而且用的是 fp16 版本的
         self.predictor = ort.InferenceSession(fp16_model_file, sess_options=sess_options, providers=providers)
+        # 所以必须是 GPU 版本的
         assert "CUDAExecutionProvider" in self.predictor.get_providers(), (
             "The environment for GPU inference is not set properly. "
             "A possible cause is that you had installed both onnxruntime and onnxruntime-gpu. "
             "Please run the following commands to reinstall: \n "
             "1) pip uninstall -y onnxruntime onnxruntime-gpu \n 2) pip install onnxruntime-gpu"
         )
+        # 输入参数名
         self.input_handler = [i.name for i in self.predictor.get_inputs()]
 
     def _get_inference_model(self):
@@ -386,11 +402,14 @@ class Task(metaclass=abc.ABCMeta):
                 )
             self._static_model_file = self._static_fp16_model_file
             self._static_params_file = self._static_fp16_params_file
+
+        # 根据类型, 选择不同的推理类
         if self._predictor_type == "paddle-inference":
+            # 初始化配置
             self._config = paddle.inference.Config(self._static_model_file, self._static_params_file)
             self._prepare_static_mode()
         else:
-            # 原来大部分都是 onnx 推理
+            # fp16 时会使用 onnx
             self._prepare_onnx_mode()
 
     def _convert_dygraph_to_static(self):
@@ -538,6 +557,10 @@ class Task(metaclass=abc.ABCMeta):
         print("Examples:\n{}".format(self._usage))
 
     def __call__(self, *args):
+        """
+        推理过程
+        """
+        # 三部曲, 准备数据, 调用模型, 后处理
         inputs = self._preprocess(*args)
         outputs = self._run_model(inputs)
         results = self._postprocess(outputs)
