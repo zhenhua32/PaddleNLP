@@ -1897,6 +1897,7 @@ class Trainer:
         metric_key_prefix: str = "eval",
     ) -> Dict[str, float]:
         """
+        运行评估方法
         Run evaluation and returns metrics.
 
         The calling script will be responsible for providing a method to compute metrics, as they are task-dependent
@@ -1926,6 +1927,7 @@ class Trainer:
         eval_dataloader = self.get_eval_dataloader(eval_dataset)
         start_time = time.time()
 
+        # 实际在这个方法里运行评估
         output = self.evaluation_loop(
             eval_dataloader,
             description="Evaluation",
@@ -1965,12 +1967,14 @@ class Trainer:
         max_eval_iters: Optional[int] = -1,
     ) -> EvalLoopOutput:
         """
+        评估和预测的循环. 在评估和预测中共享. 兼容有无标签.
         Prediction/evaluation loop, shared by `Trainer.evaluate()` and `Trainer.predict()`.
 
         Works both with or without labels.
         """
         args = self.args
 
+        # 是否仅返回预测损失
         prediction_loss_only = prediction_loss_only if prediction_loss_only is not None else args.prediction_loss_only
 
         if self.args.pipeline_parallel_degree > 1:
@@ -1996,8 +2000,9 @@ class Trainer:
             if isinstance(dataloader, _DataLoaderIterBase) and isinstance(
                 dataloader._batch_sampler, NlpDistributedBatchSampler
             ):
+                # 计算已经处理的样本数. 没看懂这个公式
                 consumed_samples = (
-                    ((self.state.global_step) // args.eval_steps)
+                    ((self.state.global_step) // args.eval_steps)  # 已经完成的评估次数
                     * max_eval_iters
                     * args.per_device_eval_batch_size
                     * args.dataset_world_size
@@ -2038,8 +2043,8 @@ class Trainer:
         all_preds = None
         all_labels = None
         # Will be useful when we have an iterable dataset so don't know its length.
-
         observed_num_examples = 0
+
         # Main evaluation loop
         losses = []
         for step, inputs in enumerate(dataloader):
@@ -2051,7 +2056,7 @@ class Trainer:
                 if batch_size is None:
                     batch_size = observed_batch_size
 
-            # Prediction step
+            # Prediction step 单次预测
             loss, logits, labels = self.prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
 
             # Update containers on host
@@ -2074,6 +2079,7 @@ class Trainer:
             # Gather all tensors and put them back on the CPU if we have done enough accumulation steps.
             if args.eval_accumulation_steps is not None and (step + 1) % args.eval_accumulation_steps == 0:
                 if losses_host is not None:
+                    # 变成 numpy 类型
                     losses = nested_numpify(losses_host)
                     all_losses = losses if all_losses is None else np.concatenate((all_losses, losses), axis=0)
                 if preds_host is not None:
@@ -2086,12 +2092,15 @@ class Trainer:
                         labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
                     )
 
+                # 这一轮的梯度累计好了, 可以重置并开始下一轮了
                 # Set back to None to begin a new accumulation
                 losses_host, preds_host, labels_host = None, None, None
 
+            # 跳出循环, 不用跑完全部数据
             if max_eval_iters > 0 and step >= max_eval_iters - 1:
                 break
 
+        # 同样的, 最后剩余的还要再来一遍
         # Gather all remaining tensors and put them back on the CPU
         if losses_host is not None:
             losses = nested_numpify(losses_host)
@@ -2103,7 +2112,7 @@ class Trainer:
             labels = nested_numpify(labels_host)
             all_labels = labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
 
-        # Number of samples
+        # Number of samples 更新样本数
         if num_samples is not None:
             pass
         elif has_length(eval_dataset):
@@ -2129,7 +2138,7 @@ class Trainer:
 
         model.train()
 
-        # Metrics!
+        # Metrics! 计算指标
         if self.compute_metrics is not None and all_preds is not None and all_labels is not None:
             metrics = self.compute_metrics(EvalPrediction(predictions=all_preds, label_ids=all_labels))
         else:
@@ -2149,6 +2158,7 @@ class Trainer:
         self, test_dataset: Dataset, ignore_keys: Optional[List[str]] = None, metric_key_prefix: str = "test"
     ) -> PredictionOutput:
         """
+        执行预测
         Run prediction and returns predictions and potential metrics.
         Depending on the dataset and your use case, your test dataset may contain labels. In that case, this method
         will also return metrics, like in `evaluate()`.
@@ -2188,6 +2198,7 @@ class Trainer:
             max_eval_iters=self.args.max_evaluate_steps,
         )
         total_batch_size = self.args.per_device_eval_batch_size * self.args.dataset_world_size
+        # 更新运行速度指标
         output.metrics.update(
             speed_metrics(
                 metric_key_prefix,
@@ -2245,6 +2256,7 @@ class Trainer:
         ignore_keys: Optional[List[str]] = None,
     ) -> Tuple[Optional[paddle.Tensor], Optional[paddle.Tensor], Optional[paddle.Tensor]]:
         """
+        执行一次预测步骤，返回 (loss, logits, labels)
         Perform an evaluation step on `model` using `inputs`.
 
         Subclass and override to inject custom behavior.
@@ -2267,11 +2279,13 @@ class Trainer:
             Tuple[Optional[paddle.Tensor], Optional[paddle.Tensor], Optional[paddle.Tensor]]: A tuple with the loss,
             logits and labels (each being optional).
         """
+        # 居然支持流水线并行
         if self.args.pipeline_parallel_degree > 1:
             # hack for pipeline mode
             inputs = self._prepare_inputs(inputs)
             return self.prediction_pipeline_step(model, inputs, prediction_loss_only, ignore_keys)
 
+        # 检查是否有标签
         has_labels = all(inputs.get(k) is not None for k in self.label_names)
         inputs = self._prepare_inputs(inputs)
         if ignore_keys is None:
@@ -2282,6 +2296,7 @@ class Trainer:
 
         # labels may be popped when computing the loss (label smoothing for instance) so we grab them first.
         if has_labels:
+            # 趁早将标签从输入中分离出来, 保存一份
             labels = nested_detach(tuple(inputs.get(name) for name in self.label_names))
             if len(labels) == 1:
                 labels = labels[0]
@@ -2291,9 +2306,11 @@ class Trainer:
         with paddle.no_grad():
             if has_labels:
                 with self.autocast_smart_context_manager():
+                    # 计算损失和模型输出
                     loss, outputs = self.compute_loss(model, inputs, return_outputs=True)
                 loss = loss.mean().detach()
 
+                # 通常 loss 是 outputs 的第一个元素, 就是也要将 loss 从 outputs 中去除
                 if isinstance(outputs, dict):
                     logits = tuple(v for k, v in outputs.items() if k not in ignore_keys + ["loss"])
                 else:
@@ -2310,6 +2327,7 @@ class Trainer:
                 if self.args.past_index >= 0:
                     self._past = outputs[self.args.past_index - 1]
 
+        # 必须要返回三个字段, 分别是 loss, logits, labels
         if prediction_loss_only:
             return (loss, None, None)
 
