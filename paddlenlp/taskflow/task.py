@@ -242,6 +242,7 @@ class Task(metaclass=abc.ABCMeta):
         self.predictor = paddle.inference.create_predictor(self._config)
         # 输入字段名
         self.input_names = [name for name in self.predictor.get_input_names()]
+        # TODO: 可以看下这些 handle 都是什么
         self.input_handles = [self.predictor.get_input_handle(name) for name in self.predictor.get_input_names()]
         self.output_handle = [self.predictor.get_output_handle(name) for name in self.predictor.get_output_names()]
 

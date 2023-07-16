@@ -326,13 +326,21 @@ class ZeroShotTextClassificationTask(Task):
         self._template = UTCTemplate(self._tokenizer, self._max_seq_len)
 
     def _check_input_text(self, inputs):
+        """
+        检查输入, 并从原始的文本中构建输入, 返回列表, 每个样本结构如下
+        {"text_a": "", "text_b": "", "choices": self._choices}
+        """
+        # inputs 是 *args, 所以只需要取第一个参数就行
         inputs = inputs[0]
+        # 输入需要转换成列表
         if isinstance(inputs, str) or isinstance(inputs, dict):
             inputs = [inputs]
 
         if isinstance(inputs, list):
             input_list = []
+            # 处理每个数据
             for example in inputs:
+                # 构建一个样本
                 data = {"text_a": "", "text_b": "", "choices": self._choices}
                 if isinstance(example, dict):
                     for k in example:
@@ -345,6 +353,7 @@ class ZeroShotTextClassificationTask(Task):
                     for x in example:
                         if not isinstance(x, str):
                             raise ValueError("Invalid inputs, input text should be strings.")
+                    # 可以是列表, 第一个字段作为 text_a, 其他的合并成 text_b
                     data["text_a"] = example[0]
                     data["text_b"] = "".join(example[1:]) if len(example) > 1 else ""
                 else:
@@ -352,6 +361,7 @@ class ZeroShotTextClassificationTask(Task):
                         "Invalid inputs, the input should be {'text_a': a, 'text_b': b}, a text or a list of text."
                     )
 
+                # 检查数据
                 if len(data["text_a"]) < 1 and len(data["text_b"]) < 1:
                     raise ValueError("Invalid inputs, input `text_a` and `text_b` are both missing or empty.")
                 if not isinstance(data["choices"], list) or len(data["choices"]) < 2:
@@ -363,24 +373,33 @@ class ZeroShotTextClassificationTask(Task):
 
     def _preprocess(self, inputs: Union[str, List[str]]) -> Dict[str, Any]:
         """
+        实际推理的第一步, 准备数据
         Transform the raw text to the model inputs, two steps involved:
            1) Transform the raw text to token ids.
            2) Generate the other model inputs from the raw text and token ids.
+        输入的 inputs 是 *args, 就是调用 __call__ 时的输入
         """
         inputs = self._check_input_text(inputs)
-        # Get the config from the kwargs
+        # Get the config from the kwargs. 对输入数据使用模板处理
         tokenized_inputs = [self._template(i) for i in inputs]
+        # 预先将数据按 batch_size 大小切分
         batches = [
             tokenized_inputs[idx : idx + self._batch_size] for idx in range(0, len(tokenized_inputs), self._batch_size)
         ]
         inputs = [inputs[idx : idx + self._batch_size] for idx in range(0, len(inputs), self._batch_size)]
+
+        # 返回一个字典
         outputs = {}
         outputs["text"] = inputs
+        # 这里会调用 _collator, 转换类型成 np
         outputs["batches"] = [self._collator(batch) for batch in batches]
 
         return outputs
 
     def _run_model(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        第二步, 运行模型, 获取 logits
+        """
         outputs = {}
         outputs["text"] = inputs["text"]
         outputs["batch_logits"] = []
@@ -400,27 +419,32 @@ class ZeroShotTextClassificationTask(Task):
                     self.predictor.run()
                     logits = self.output_handle[0].copy_to_cpu().tolist()
                 else:
+                    # onnx 推理
                     input_dict = {}
                     for input_name in dtype_dict:
                         input_dict[input_name] = batch[input_name].astype(dtype_dict[input_name])
                     logits = self.predictor.run(None, input_dict)[0].tolist()
+                # 最后就是添加 logits
                 outputs["batch_logits"].append(logits)
 
         return outputs
 
     def _postprocess(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
+        第三步, 后处理
         This function converts the model logits output to class score and predictions
         """
         outputs = []
         for batch_text, batch_logits in zip(inputs["text"], inputs["batch_logits"]):
             for text, logits in zip(batch_text, batch_logits):
+                # 重新构建每个输出
                 output = {}
                 if len(text["text_a"]) > 0:
                     output["text_a"] = text["text_a"]
                 if len(text["text_b"]) > 0:
                     output["text_b"] = text["text_b"]
 
+                # 单标签
                 if self._single_label:
                     score = np_softmax(logits, axis=-1)
                     label = np.argmax(logits, axis=-1)
