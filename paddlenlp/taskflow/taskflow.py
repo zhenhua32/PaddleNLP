@@ -420,6 +420,7 @@ TASKS = {
             "model": "Salesforce/codegen-350M-mono",
         },
     },
+    # 原来有个文本分类, 下面还有个零样本文本分类
     "text_classification": {
         "modes": {
             "finetune": {
@@ -737,6 +738,7 @@ support_argument_list = [
 
 class Taskflow(object):
     """
+    端到端的推理
     The Taskflow is the end2end interface that could convert the raw text to model result, and decode the model result to task result. The main functions as follows:
         1) Convert the raw text to task result.
         2) Convert the model to the inference model.
@@ -752,6 +754,7 @@ class Taskflow(object):
     """
 
     def __init__(self, task, model=None, mode=None, device_id=0, from_hf_hub=False, **kwargs):
+        # 任务名
         assert task in TASKS, f"The task name:{task} is not in Taskflow list, please check your task name."
         self.task = task
         # Set the device for the task
@@ -761,6 +764,7 @@ class Taskflow(object):
         else:
             paddle.set_device(device + ":" + str(device_id))
 
+        # 有些任务是有多个模式可选, 比如精确模式和快速模式
         if self.task in ["word_segmentation", "ner", "text_classification"]:
             tag = "modes"
             ind_tag = "mode"
@@ -775,6 +779,7 @@ class Taskflow(object):
         else:
             self.model = TASKS[task]["default"][ind_tag]
 
+        # 任务优先级
         if "task_priority_path" in TASKS[self.task][tag][self.model]:
             self.priority_path = TASKS[self.task][tag][self.model]["task_priority_path"]
         else:
@@ -785,6 +790,7 @@ class Taskflow(object):
         kwargs["device_id"] = device_id
         kwargs.update(config_kwargs)
         self.kwargs = kwargs
+        # 实例化具体的任务类
         task_class = TASKS[self.task][tag][self.model]["task_class"]
         self.task_instance = task_class(
             model=self.model, task=self.task, priority_path=self.priority_path, from_hf_hub=from_hf_hub, **self.kwargs
@@ -797,6 +803,7 @@ class Taskflow(object):
 
     def __call__(self, *inputs):
         """
+        就是调用对应的 task_instance 实例
         The main work function in the taskflow.
         """
         results = self.task_instance(inputs)
@@ -810,6 +817,7 @@ class Taskflow(object):
 
     def task_path(self):
         """
+        任务路径
         Return the path of current task
         """
         return self.task_instance._task_path
@@ -817,6 +825,7 @@ class Taskflow(object):
     @staticmethod
     def tasks():
         """
+        显示所有可用的任务
         Return the available task list.
         """
         task_list = list(TASKS.keys())
@@ -827,6 +836,9 @@ class Taskflow(object):
         return results
 
     def interactive_mode(self, max_turn):
+        """
+        还有个交互模式
+        """
         with self.task_instance.interactive_mode(max_turn):
             while True:
                 human = input("[Human]:").strip()

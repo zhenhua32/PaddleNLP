@@ -65,6 +65,7 @@ class Task(metaclass=abc.ABCMeta):
         self.export_type = None
 
         if "task_path" in self.kwargs:
+            # 如果提供了 task_path, 就是自定义模型, 也就是使用自己的数据训练过的
             self._task_path = self.kwargs["task_path"]
             self._custom_model = True
         elif self._priority_path:
@@ -128,6 +129,7 @@ class Task(metaclass=abc.ABCMeta):
 
     def _check_task_files(self):
         """
+        检查必要的文件是否存在, 需要子类有两个字段 resource_files_names 和 resource_files_urls
         Check files required by the task.
         """
         for file_id, file_name in self.resource_files_names.items():
@@ -135,6 +137,7 @@ class Task(metaclass=abc.ABCMeta):
                 dygraph_file = ["model_state.pdparams"]
             else:
                 dygraph_file = ["model_state.pdparams", "config.json"]
+            # 如果是静态模型, 且文件存在就跳过
             if self.is_static_model and file_name in dygraph_file:
                 continue
             path = os.path.join(self._task_path, file_name)
@@ -145,25 +148,32 @@ class Task(metaclass=abc.ABCMeta):
             if not os.path.exists(path):
                 downloaded = False
             else:
+                # 如果不是自定义模型, 且文件存在, 就要检查下 md5
                 if not self._custom_model:
                     if os.path.exists(path):
                         # Check whether the file is updated
                         if not md5file(path) == md5:
                             downloaded = False
+                            # 如果是参数文件需要更新, 设置 _param_updated 为 True
                             if file_id == "model_state":
                                 self._param_updated = True
                     else:
                         downloaded = False
             if not downloaded:
+                # 重新下载文件
                 download_file(self._task_path, file_name, url, md5)
 
     def _check_predictor_type(self):
+        """
+        检查预测器类型
+        """
         if paddle.get_device() == "cpu" and self._infer_precision == "fp16":
             logger.warning("The inference precision is change to 'fp32', 'fp16' inference only takes effect on gpu.")
         elif paddle.get_device().split(":", 1)[0] == "npu":
             if self._infer_precision == "fp16":
-                logger.info("Inference on npu with fp16 precison")
+                logger.info("Inference on npu with fp16 precision")
         else:
+            # fp16 时会使用 onnxruntime 预测器
             if self._infer_precision == "fp16":
                 self._predictor_type = "onnxruntime"
 
@@ -277,15 +287,18 @@ class Task(metaclass=abc.ABCMeta):
 
     def _get_inference_model(self):
         """
+        初始化推理模型
         Return the inference program, inputs and outputs in static mode.
         """
         if self._custom_model:
             param_path = os.path.join(self._task_path, "model_state.pdparams")
 
+            # 如果模型参数文件已经存在, 就使用这个文件
             if os.path.exists(param_path):
                 cache_info_path = os.path.join(self._task_path, ".cache_info")
                 md5 = md5file(param_path)
                 self._param_updated = True
+                # 检查下缓存信息, md5 不变就不需要 _param_updated
                 if os.path.exists(cache_info_path) and open(cache_info_path).read()[:-8] == md5:
                     self._param_updated = False
                 elif self.task == "information_extraction" and self.model != "uie-data-distill-gp":
@@ -311,19 +324,23 @@ class Task(metaclass=abc.ABCMeta):
                             new_state_dict[name] = param
                     paddle.save(new_state_dict, param_path)
                 else:
+                    # 写入 md5
                     fp = open(cache_info_path, "w")
                     fp.write(md5 + "taskflow")
                     fp.close()
 
+        # 如果已经是静态图了, 就不需要转换了
         # When the user-provided model path is already a static model, skip to_static conversion
         if self.is_static_model:
             self.inference_model_path = os.path.join(self._task_path, self._static_model_name)
+            # 静态模型需要有两个文件, 后缀分别是 .pdmodel 和 .pdiparams
             if not os.path.exists(self.inference_model_path + ".pdmodel") or not os.path.exists(
                 self.inference_model_path + ".pdiparams"
             ):
                 raise IOError(
                     f"{self._task_path} should include {self._static_model_name + '.pdmodel'} and {self._static_model_name + '.pdiparams'} while is_static_model is True"
                 )
+            # 还支持量化版本的
             if self.paddle_quantize_model(self.inference_model_path):
                 self._infer_precision = "int8"
                 self._predictor_type = "paddle-inference"
@@ -336,6 +353,7 @@ class Task(metaclass=abc.ABCMeta):
                 else os.path.join(self._home_path, "taskflow", self.task, self._task_path)
             )
             self.inference_model_path = os.path.join(_base_path, "static", "inference")
+            # 如果静态图模型不存在, 或者参数更新了, 就需要重新转换
             if not os.path.exists(self.inference_model_path + ".pdiparams") or self._param_updated:
                 with dygraph_mode_guard():
                     self._construct_model(self.model)
@@ -345,6 +363,7 @@ class Task(metaclass=abc.ABCMeta):
         self._static_model_file = self.inference_model_path + ".pdmodel"
         self._static_params_file = self.inference_model_path + ".pdiparams"
 
+        # npu 的操作, 先不看
         if paddle.get_device().split(":", 1)[0] == "npu" and self._infer_precision == "fp16":
             # transform fp32 model tp fp16 model
             self._static_fp16_model_file = self.inference_model_path + "-fp16.pdmodel"
@@ -371,6 +390,7 @@ class Task(metaclass=abc.ABCMeta):
             self._config = paddle.inference.Config(self._static_model_file, self._static_params_file)
             self._prepare_static_mode()
         else:
+            # 原来大部分都是 onnx 推理
             self._prepare_onnx_mode()
 
     def _convert_dygraph_to_static(self):

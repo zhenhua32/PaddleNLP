@@ -39,6 +39,7 @@ usage = r"""
 
 class ZeroShotTextClassificationTask(Task):
     """
+    零样本分类
     Zero-shot Universial Text Classification Task.
 
     Args:
@@ -48,6 +49,7 @@ class ZeroShotTextClassificationTask(Task):
         kwargs (dict, optional): Additional keyword arguments passed along to the specific task.
     """
 
+    # 资源文件名
     resource_files_names = {
         "model_state": "model_state.pdparams",
         "config": "config.json",
@@ -55,6 +57,7 @@ class ZeroShotTextClassificationTask(Task):
         "special_tokens_map": "special_tokens_map.json",
         "tokenizer_config": "tokenizer_config.json",
     }
+    # 资源下载地址
     resource_files_urls = {
         "utc-xbase": {
             "model_state": [
@@ -257,6 +260,9 @@ class ZeroShotTextClassificationTask(Task):
     }
 
     def __init__(self, task: str, model: str, schema: list = None, **kwargs):
+        """
+        看下初始化
+        """
         super().__init__(task=task, model=model, **kwargs)
 
         self._set_utc_schema(schema)
@@ -272,6 +278,10 @@ class ZeroShotTextClassificationTask(Task):
         self._get_inference_model()
 
     def _set_utc_schema(self, schema):
+        """
+        设置 utc 的 schema
+        """
+        # 就是更新 _choices, 是个列表
         if schema is None:
             self._choices = None
         elif isinstance(schema, list):
@@ -308,6 +318,7 @@ class ZeroShotTextClassificationTask(Task):
 
     def _construct_tokenizer(self):
         """
+        初始化分词器
         Construct the tokenizer for the predictor.
         """
         self._tokenizer = AutoTokenizer.from_pretrained(self._task_path, from_hf_hub=self.from_hf_hub)
