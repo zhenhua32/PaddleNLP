@@ -270,6 +270,7 @@ class ZeroShotTextClassificationTask(Task):
         self._batch_size = kwargs.get("batch_size", 1)
         self._pred_threshold = kwargs.get("pred_threshold", 0.5)
         self._num_workers = kwargs.get("num_workers", 0)
+        # 原来 paddlenlp 2.5.2 版本还没有这个参数
         self._single_label = kwargs.get("single_label", False)
 
         self._check_task_files()

@@ -3,18 +3,19 @@ import subprocess
 import sys
 
 # 尝试覆盖掉已经安装的 paddlenlp
-# sys.path.insert(0, r"G:\code\github\PaddleNLP")
+sys.path.insert(0, r"G:\code\github\PaddleNLP")
 os.environ["PYTHONPATH"] = r"G:\code\github\PaddleNLP"
 
 cur_dir = os.path.dirname(__file__)
 model_dir = "utc-base"
-data_dir = r"G:\dataset\text_classify\baidu_utc_medical\raw"
-output_dir = r"G:\code\github\PaddleNLP\outputs\medical"
+data_dir = r"G:\dataset\text_classify\tnews\paddlenlp"
+output_dir = r"G:\code\github\PaddleNLP\outputs\tnews"
 
 cmd_list = [
     sys.executable,
-    os.path.join(cur_dir, "run_train.py"),
+    os.path.join(cur_dir, "../run_train.py"),
     "--device=gpu",
+    "--single_label=True",
     "--logging_steps=10",
     "--save_steps=100",
     "--eval_steps=100",
@@ -23,9 +24,9 @@ cmd_list = [
     f"--output_dir={output_dir}",
     f"--dataset_path={data_dir}",
     "--max_seq_length=512",
-    "--per_device_train_batch_size=2",
-    "--per_device_eval_batch_size=2",
-    "--gradient_accumulation_steps=8",
+    "--per_device_train_batch_size=16",
+    "--per_device_eval_batch_size=16",
+    "--gradient_accumulation_steps=1",
     "--num_train_epochs=100",
     "--learning_rate=1e-5",
     "--do_train",
@@ -34,7 +35,7 @@ cmd_list = [
     f"--export_model_dir={output_dir}/export_model",
     "--overwrite_output_dir",
     "--disable_tqdm=True",
-    "--metric_for_best_model=macro_f1",
+    "--metric_for_best_model=accuracy",
     "--load_best_model_at_end=True",
     "--save_total_limit=1",
     "--save_plm",

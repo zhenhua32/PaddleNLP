@@ -1649,6 +1649,7 @@ class Trainer:
 
     def save_model(self, output_dir: Optional[str] = None, merge_tensor_parallel: Optional[bool] = False):
         """
+        保存模型
         Will save the model, so you can reload it using `from_pretrained()`.
 
         Will only save from the main process.

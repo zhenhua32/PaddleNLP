@@ -96,7 +96,7 @@ def main():
     # Define the metric function.
     def compute_metrics_single_label(eval_preds):
         """
-        计算单标签的准确率
+        计算单标签的准确率, 只有一个准确率, 设置 metric_for_best_model 的时候需要注意
         """
         labels = paddle.to_tensor(eval_preds.label_ids, dtype="int64")
         preds = paddle.to_tensor(eval_preds.predictions)
