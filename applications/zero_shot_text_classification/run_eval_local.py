@@ -9,7 +9,7 @@ os.environ["PYTHONPATH"] = r"G:\code\github\PaddleNLP"
 cur_dir = os.path.dirname(__file__)
 # model_dir = "utc-base"
 data_dir = r"G:\dataset\text_classify\baidu_utc_medical\raw"
-train_output_dir = r"G:\code\github\PaddleNLP\outputs"
+train_output_dir = r"G:\code\github\PaddleNLP\outputs\medical"
 # 这里需要的是训练输出目录, 而不是模型导出目录
 model_dir = os.path.join(train_output_dir, "")
 test_path = os.path.join(data_dir, "test.txt")
