@@ -310,7 +310,7 @@ class Task(metaclass=abc.ABCMeta):
         if self._custom_model:
             param_path = os.path.join(self._task_path, "model_state.pdparams")
 
-            # 如果模型参数文件已经存在, 就使用这个文件
+            # 主要判断下 _param_updated
             if os.path.exists(param_path):
                 cache_info_path = os.path.join(self._task_path, ".cache_info")
                 md5 = md5file(param_path)

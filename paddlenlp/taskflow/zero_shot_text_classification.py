@@ -265,6 +265,7 @@ class ZeroShotTextClassificationTask(Task):
         """
         super().__init__(task=task, model=model, **kwargs)
 
+        # 设置各种属性
         self._set_utc_schema(schema)
         self._max_seq_len = kwargs.get("max_seq_len", 512)
         self._batch_size = kwargs.get("batch_size", 1)
@@ -273,6 +274,7 @@ class ZeroShotTextClassificationTask(Task):
         # 原来 paddlenlp 2.5.2 版本还没有这个参数
         self._single_label = kwargs.get("single_label", False)
 
+        # 真正的初始化流程
         self._check_task_files()
         self._construct_tokenizer()
         self._check_predictor_type()
@@ -313,6 +315,7 @@ class ZeroShotTextClassificationTask(Task):
         """
         Construct the inference model for the predictor.
         """
+        # 就是这里, 应该可以 hack 掉, 更新 model_state.pdparams 的 key
         model_instance = UTC.from_pretrained(self._task_path, from_hf_hub=self.from_hf_hub)
         self._model = model_instance
         self._model.eval()
