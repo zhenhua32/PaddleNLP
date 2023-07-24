@@ -63,7 +63,8 @@ def parse_arguments():
 class Predictor(object):
     def __init__(self, args, schema: list = None):
         self.set_schema(schema)
-        self.tokenizer = AutoTokenizer.from_pretrained(args.model_dir)
+        self.tokenizer = AutoTokenizer.from_pretrained(args.vocab_path)
+        print("self.tokenizer", self.tokenizer)
         self.runtime = self.create_fd_runtime(args)
         self.batch_size = args.batch_size
         self.max_length = args.max_length
@@ -247,6 +248,7 @@ class Predictor(object):
         outputs = []
         for logits in inputs["batch_logits"]:
             # 这是只有多标签的, 没写单标签的 softmax
+            # TODO: 支持单标签
             scores = self.sigmoid(np.array(logits))
             output = {}
             output["predictions"] = []
@@ -283,6 +285,13 @@ class Predictor(object):
 if __name__ == "__main__":
     args = parse_arguments()
     # schema 是选项
-    predictor = Predictor(args, schema=["这是一条差评", "这是一条好评"])
-    results = predictor.predict("房间干净明亮，非常不错")
+    # predictor = Predictor(args, schema=["这是一条差评", "这是一条好评"])
+    schema = ['故事', '文化', '娱乐', '体育', '财经', '房产', '汽车', '教育', '科技', '军事', '旅游', '国际', '股票', '农业', '电竞']
+    predictor = Predictor(args, schema=schema)
+    results = predictor.predict("农村依然很重视土葬")
     print(results)
+
+"""
+python infer.py --model_dir G:\code\github\PaddleNLP\outputs\tnews\export_model --vocab_path G:\code\github\PaddleNLP\outputs\tnews --device cpu
+python infer.py --model_dir G:\code\github\PaddleNLP\outputs\tnews\export_model --vocab_path G:\code\github\PaddleNLP\outputs\tnews --device gpu
+"""
