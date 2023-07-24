@@ -72,6 +72,9 @@ class Predictor(object):
         self.pred_threshold = args.pred_threshold
 
     def set_schema(self, schema):
+        """
+        设置 question 和 choices
+        """
         if schema is None:
             self._question = None
             self._choices = None
@@ -85,22 +88,30 @@ class Predictor(object):
         else:
             raise ValueError(f"Invalid schema: {schema}.")
 
-    def _check_input_text(self, inputs):
+    def _check_input_text(self, inputs) -> list:
+        """
+        检查输入文本
+        """
+        # 将输入转换成 list
         if isinstance(inputs, str) or isinstance(inputs, dict):
             inputs = [inputs]
 
         if isinstance(inputs, list):
             input_list = []
             for example in inputs:
+                # 构建一个样本
                 data = {"text_a": "", "text_b": "", "choices": self._choices, "question": self._question}
                 if isinstance(example, dict):
+                    # 替换掉默认的值
                     for k, v in example.items():
                         if k in data:
                             data[k] = example[k]
                 elif isinstance(example, str):
+                    # 就是纯文本
                     data["text_a"] = example
                     data["text_b"] = ""
                 elif isinstance(example, list):
+                    # 取第一个作为 text_a，剩下的作为 text_b
                     for x in example:
                         if not isinstance(x, str):
                             raise ValueError("Invalid inputs, input text should be strings.")
@@ -111,6 +122,7 @@ class Predictor(object):
                         "Invalid inputs, the input should be {'text_a': a, 'text_b': b}, a text or a list of text."
                     )
 
+                # 检查输入字段
                 if len(data["text_a"]) < 1 and len(data["text_b"]) < 1:
                     raise ValueError("Invalid inputs, input `text_a` and `text_b` are both missing or empty.")
                 if not isinstance(data["choices"], list) or len(data["choices"]) < 2:
@@ -123,15 +135,22 @@ class Predictor(object):
         return input_list
 
     def create_fd_runtime(self, args):
+        """
+        初始化 fastdeploy runtime 并返回
+        """
         option = fd.RuntimeOption()
         model_path = os.path.join(args.model_dir, args.model_prefix + ".pdmodel")
         params_path = os.path.join(args.model_dir, args.model_prefix + ".pdiparams")
         option.set_model_path(model_path, params_path)
+
+        # 支持 CPU 和 GPU 部署
         if args.device == "cpu":
             option.use_cpu()
             option.set_cpu_thread_num(args.cpu_threads)
         else:
             option.use_gpu(args.device_id)
+
+        # 支持多种后端
         if args.backend == "paddle":
             option.use_paddle_infer_backend()
         elif args.backend == "onnx_runtime":
@@ -139,6 +158,7 @@ class Predictor(object):
         elif args.backend == "openvino":
             option.use_openvino_backend()
         else:
+            # trt 的最复杂, 没看
             option.use_trt_backend()
             if args.backend == "paddle_tensorrt":
                 option.use_paddle_infer_backend()
@@ -179,44 +199,59 @@ class Predictor(object):
 
     def preprocess(self, inputs: Union[str, List[str]]) -> Dict[str, Any]:
         """
+        将文本转换成模型需要的输入
         Transform the raw text to the model inputs, two steps involved:
            1) Transform the raw text to token ids.
            2) Generate the other model inputs from the raw text and token ids.
         """
         inputs = self._check_input_text(inputs)
         # Get the config from the kwargs
+        # 使用模板对输入进行编码
         tokenized_inputs = [self.template(i) for i in inputs]
+        # 按照 batch_size 切分
         batches = [
             tokenized_inputs[idx : idx + self.batch_size] for idx in range(0, len(tokenized_inputs), self.batch_size)
         ]
         outputs = {}
         outputs["text"] = inputs
+        # 调用填充
         outputs["batches"] = [self.collator(batch) for batch in batches]
 
         return outputs
 
     def infer(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        运行推理
+        """
         outputs = {}
         outputs["text"] = inputs["text"]
         outputs["batch_logits"] = []
+        # 定义数据类型
         dtype_list = ["int64", "int64", "int64", "float32", "int64", "int64"]
         for batch in inputs["batches"]:
             batch = dict(batch)
             for i in range(self.runtime.num_inputs()):
                 input_name = self.runtime.get_input_info(i).name
+                # 转换类型
                 batch[input_name] = batch[input_name].astype(dtype_list[i])
             del batch["soft_token_ids"]
+            # 推理, 获取 logits
             logits = self.runtime.infer(batch)[0]
             outputs["batch_logits"].append(logits)
         return outputs
 
     def postprocess(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        后处理
+        """
         outputs = []
         for logits in inputs["batch_logits"]:
+            # 这是只有多标签的, 没写单标签的 softmax
             scores = self.sigmoid(np.array(logits))
             output = {}
             output["predictions"] = []
             for i, class_score in enumerate(scores[0]):
+                # 添加超过阈值的
                 if class_score > self.pred_threshold:
                     output["predictions"].append({"label": i, "score": class_score})
             outputs.append(output)
@@ -228,6 +263,7 @@ class Predictor(object):
                 output["text_b"] = inputs["text"][i]["text_b"]
             for j, pred in enumerate(output["predictions"]):
                 output["predictions"][j] = {
+                    # 从 index 转换成 label 文本
                     "label": inputs["text"][i]["choices"][pred["label"]],
                     "score": pred["score"],
                 }
@@ -235,6 +271,9 @@ class Predictor(object):
         return outputs
 
     def predict(self, texts):
+        """
+        预测的入口函数
+        """
         inputs = self.preprocess(texts)
         outputs = self.infer(inputs)
         results = self.postprocess(outputs)
@@ -243,6 +282,7 @@ class Predictor(object):
 
 if __name__ == "__main__":
     args = parse_arguments()
+    # schema 是选项
     predictor = Predictor(args, schema=["这是一条差评", "这是一条好评"])
     results = predictor.predict("房间干净明亮，非常不错")
     print(results)
