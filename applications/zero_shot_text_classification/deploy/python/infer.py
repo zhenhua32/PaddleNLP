@@ -250,9 +250,12 @@ class Predictor(object):
             # 这是只有多标签的, 没写单标签的 softmax
             # TODO: 支持单标签
             scores = self.sigmoid(np.array(logits))
+            # scores 的 shape 在 GPU 和 CPU 上不同
+            if len(scores.shape) == 2:
+                scores = scores[0]
             output = {}
             output["predictions"] = []
-            for i, class_score in enumerate(scores[0]):
+            for i, class_score in enumerate(scores):
                 # 添加超过阈值的
                 if class_score > self.pred_threshold:
                     output["predictions"].append({"label": i, "score": class_score})
@@ -288,7 +291,7 @@ if __name__ == "__main__":
     # predictor = Predictor(args, schema=["这是一条差评", "这是一条好评"])
     schema = ['故事', '文化', '娱乐', '体育', '财经', '房产', '汽车', '教育', '科技', '军事', '旅游', '国际', '股票', '农业', '电竞']
     predictor = Predictor(args, schema=schema)
-    results = predictor.predict("农村依然很重视土葬")
+    results = predictor.predict(["农村依然很重视土葬"] * 5)
     print(results)
 
 """
