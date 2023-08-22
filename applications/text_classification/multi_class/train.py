@@ -44,6 +44,7 @@ from paddlenlp.transformers import (
 )
 from paddlenlp.utils.log import logger
 
+# 可使用的模型列表
 SUPPORTED_MODELS = [
     "ernie-1.0-large-zh-cw",
     "ernie-1.0-base-zh-cw",
@@ -70,6 +71,9 @@ SUPPORTED_MODELS = [
 # yapf: disable
 @dataclass
 class DataArguments:
+    """
+    数据集相关的参数
+    """
     max_length: int = field(default=128, metadata={"help": "Maximum number of tokens for the model."})
     early_stopping: bool = field(default=False, metadata={"help": "Whether apply early stopping strategy."})
     early_stopping_patience: int = field(default=4, metadata={"help": "Stop training when the specified metric worsens for early_stopping_patience evaluation calls"})
@@ -83,6 +87,9 @@ class DataArguments:
 
 @dataclass
 class ModelArguments:
+    """
+    模型相关的参数
+    """
     model_name_or_path: str = field(default="ernie-3.0-tiny-medium-v2-zh", metadata={"help": "Build-in pretrained model name or the path to local model."})
     export_model_dir: Optional[str] = field(default=None, metadata={"help": "Path to directory to store the exported inference model."})
 # yapf: enable
@@ -91,6 +98,7 @@ class ModelArguments:
 def main():
     """
     Training a binary or multi classification model
+    训练流程
     """
 
     parser = PdArgumentParser((ModelArguments, DataArguments, CompressionArguments))
@@ -117,6 +125,7 @@ def main():
             model_args.model_name_or_path, label2id=label2id, id2label=id2label
         )
     elif model_args.model_name_or_path in SUPPORTED_MODELS:
+        # 需要定义下类别数
         model = AutoModelForSequenceClassification.from_pretrained(
             model_args.model_name_or_path, num_classes=len(label2id), label2id=label2id, id2label=id2label
         )
@@ -133,16 +142,21 @@ def main():
     train_ds = train_ds.map(trans_func)
     dev_ds = dev_ds.map(trans_func)
 
+    # debug 模式会加载 test 数据集
     if data_args.debug:
         test_ds = load_dataset(read_local_dataset, path=data_args.test_path, label2id=label2id, lazy=False)
         test_ds = test_ds.map(trans_func)
 
     # Define the metric function.
     def compute_metrics(eval_preds):
+        """
+        计算指标
+        """
         pred_ids = np.argmax(eval_preds.predictions, axis=-1)
         metrics = {}
         metrics["accuracy"] = accuracy_score(y_true=eval_preds.label_ids, y_pred=pred_ids)
         for average in ["micro", "macro"]:
+            # 原来能一次性计算所有
             precision, recall, f1, _ = precision_recall_fscore_support(
                 y_true=eval_preds.label_ids, y_pred=pred_ids, average=average
             )
@@ -152,6 +166,9 @@ def main():
         return metrics
 
     def compute_metrics_debug(eval_preds):
+        """
+        debug 模式下会计算分类报告
+        """
         pred_ids = np.argmax(eval_preds.predictions, axis=-1)
         metrics = classification_report(eval_preds.label_ids, pred_ids, output_dict=True)
         return metrics
@@ -181,6 +198,7 @@ def main():
         metrics = train_result.metrics
         trainer.save_model()
         trainer.log_metrics("train", metrics)
+        # 这里删除了所有的检查点
         for checkpoint_path in Path(training_args.output_dir).glob("checkpoint-*"):
             shutil.rmtree(checkpoint_path)
 
@@ -193,7 +211,7 @@ def main():
             eval_metrics = trainer.evaluate()
             trainer.log_metrics("eval", eval_metrics)
 
-    # export inference model
+    # export inference model 导出静态模型
     if training_args.do_export:
         if model.init_config["init_class"] in ["ErnieMForSequenceClassification"]:
             input_spec = [paddle.static.InputSpec(shape=[None, None], dtype="int64", name="input_ids")]
@@ -205,13 +223,14 @@ def main():
         if model_args.export_model_dir is None:
             model_args.export_model_dir = os.path.join(training_args.output_dir, "export")
         export_model(model=trainer.model, input_spec=input_spec, path=model_args.export_model_dir)
+        # 保存分词器和标签
         tokenizer.save_pretrained(model_args.export_model_dir)
         id2label_file = os.path.join(model_args.export_model_dir, "id2label.json")
         with open(id2label_file, "w", encoding="utf-8") as f:
             json.dump(id2label, f, ensure_ascii=False)
             logger.info(f"id2label file saved in {id2label_file}")
 
-    # compress
+    # compress 模型裁剪
     if training_args.do_compress:
         trainer.compress()
         for width_mult in training_args.width_mult_list:
@@ -222,8 +241,9 @@ def main():
                 json.dump(id2label, f, ensure_ascii=False)
                 logger.info(f"id2label file saved in {id2label_file}")
 
-    for path in Path(training_args.output_dir).glob("runs"):
-        shutil.rmtree(path)
+    # 这里删除了所有的训练日志. 这个还是要保留下来的
+    # for path in Path(training_args.output_dir).glob("runs"):
+    #     shutil.rmtree(path)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ def preprocess_function(examples, tokenizer, max_length, is_test=False):
     """
     Builds model inputs from a sequence for sequence classification tasks
     by concatenating and adding special tokens.
+    预处理函数, 用于分词和添加标签
     """
     result = tokenizer(examples["text"], max_length=max_length, truncation=True)
     if not is_test:
@@ -31,6 +32,7 @@ def preprocess_function(examples, tokenizer, max_length, is_test=False):
 def read_local_dataset(path, label2id=None, is_test=False):
     """
     Read dataset.
+    从本地读取数据集, 如果有标签, 应该用 \t 分隔, 会将标签名转换成 id
     """
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
@@ -45,6 +47,7 @@ def read_local_dataset(path, label2id=None, is_test=False):
 def log_metrics_debug(output, id2label, dev_ds, bad_case_path):
     """
     Log metrics in debug mode.
+    记录 debug 模式下的指标, 主要会将 bad case 保存到文件中
     """
     predictions, label_ids, metrics = output
     pred_ids = np.argmax(predictions, axis=-1)
@@ -58,6 +61,7 @@ def log_metrics_debug(output, id2label, dev_ds, bad_case_path):
             metrics["test_macro avg"]["f1-score"] * 100,
         )
     )
+    # 记录每个类别的指标
     for i in id2label:
         l = id2label[i]
         logger.info("Class name: {}".format(l))
