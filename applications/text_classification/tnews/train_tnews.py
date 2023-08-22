@@ -12,7 +12,6 @@ os.environ["PYTHONPATH"] = r"G:\code\github\PaddleNLP"
 cur_dir = os.path.dirname(__file__)
 data_dir = r"G:\dataset\text_classify\tnews_public\paddlenlp"
 
-
 # 输入的训练文件是固定的
 train_file = os.path.join(data_dir, "train.txt")
 dev_file = os.path.join(data_dir, "dev.txt")
@@ -26,6 +25,7 @@ def train_one_model(model_dir: str, output_dir: str):
     """
     bad_case_file = os.path.join(output_dir, "bad_case.txt")
 
+    # TODO: 略坑, 没有日志保存下来
     cmd_list = [
         sys.executable,
         os.path.join(cur_dir, "../multi_class/train.py"),
@@ -73,7 +73,7 @@ def main():
         "ernie-3.0-tiny-medium-v2-zh",
         "ernie-3.0-tiny-micro-v2-zh",
         "ernie-3.0-tiny-mini-v2-zh",
-        "ernie-3.0-tiny-nano-v2-zh ",
+        "ernie-3.0-tiny-nano-v2-zh",
         "ernie-3.0-tiny-pico-v2-zh",
         "ernie-m-base",
         "ernie-m-large",

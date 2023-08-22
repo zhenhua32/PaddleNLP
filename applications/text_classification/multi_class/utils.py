@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 
 import numpy as np
 
@@ -81,6 +82,8 @@ def log_metrics_debug(output, id2label, dev_ds, bad_case_path):
         logger.info("----------------------------")
 
     with open(bad_case_path, "w", encoding="utf-8") as f:
+        # 模型指标写入到第一行中
+        f.write(json.dumps(metrics, ensure_ascii=False) + "\n")
         f.write("Text\tLabel\tPrediction\n")
         for i, (p, l) in enumerate(zip(pred_ids, label_ids)):
             p, l = int(p), int(l)
