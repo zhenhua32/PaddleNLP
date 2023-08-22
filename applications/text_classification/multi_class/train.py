@@ -58,7 +58,7 @@ SUPPORTED_MODELS = [
     "ernie-3.0-tiny-medium-v2-zh",
     "ernie-3.0-tiny-micro-v2-zh",
     "ernie-3.0-tiny-mini-v2-zh",
-    "ernie-3.0-tiny-nano-v2-zh ",
+    "ernie-3.0-tiny-nano-v2-zh",
     "ernie-3.0-tiny-pico-v2-zh",
     "ernie-2.0-large-en",
     "ernie-2.0-base-en",
