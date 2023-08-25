@@ -82,7 +82,7 @@ class PromptTrainer(Trainer):
         )
 
         # 加载检查点
-        self.load_state_dict_from_checkpoint(args.resume_from_checkpoint)
+        self._load_from_checkpoint(args.resume_from_checkpoint)
 
         # 数据转换
         self.train_dataset = self._map_dataset(self.train_dataset)
@@ -169,7 +169,7 @@ class PromptTrainer(Trainer):
             os.makedirs(plm_output_dir, exist_ok=True)
             self.pretrained_model.save_pretrained(plm_output_dir)
 
-    def load_state_dict_from_checkpoint(self, resume_from_checkpoint: os.PathLike = None):
+    def _load_from_checkpoint(self, resume_from_checkpoint: os.PathLike = None):
         """
         加载检查点
         """
@@ -178,7 +178,7 @@ class PromptTrainer(Trainer):
             self.template = AutoTemplate.load_from(
                 resume_from_checkpoint, self.tokenizer, self.args.max_seq_length, self._get_model().plm
             )
-        super(PromptTrainer, self).load_state_dict_from_checkpoint(resume_from_checkpoint)
+        super(PromptTrainer, self)._load_from_checkpoint(resume_from_checkpoint)
 
     def get_test_dataloader(self, test_dataset):
         """

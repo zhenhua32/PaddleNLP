@@ -62,6 +62,7 @@ class DensePassageRetriever(BaseRetriever):
         similarity_function: str = "dot_product",
         progress_bar: bool = True,
         mode: Literal["snippets", "raw_documents", "preprocessed_documents"] = "preprocessed_documents",
+        **kwargs
     ):
         """
         Init the Retriever incl. the two encoder models from a local or remote model checkpoint.
@@ -146,7 +147,7 @@ class DensePassageRetriever(BaseRetriever):
             pretrained_model = AutoModel.from_pretrained(query_embedding_model)
             self.ernie_dual_encoder = SemanticIndexBatchNeg(pretrained_model, output_emb_size=output_emb_size)
             # Load Custom models
-            print("Loading Parameters from:{}".format(params_path))
+            logger.info("Loading Parameters from:{}".format(params_path))
             state_dict = paddle.load(params_path)
             self.ernie_dual_encoder.set_dict(state_dict)
             self.query_tokenizer = AutoTokenizer.from_pretrained(query_embedding_model)
@@ -163,6 +164,7 @@ class DensePassageRetriever(BaseRetriever):
                 reinitialize=reinitialize,
                 share_parameters=share_parameters,
                 device_id=0 if use_gpu else -1,
+                **kwargs,
             )
             self.passage_encoder = Taskflow(
                 "feature_extraction",
@@ -175,6 +177,7 @@ class DensePassageRetriever(BaseRetriever):
                 reinitialize=reinitialize,
                 share_parameters=share_parameters,
                 device_id=0 if use_gpu else -1,
+                **kwargs,
             )
 
     def retrieve(
@@ -185,6 +188,7 @@ class DensePassageRetriever(BaseRetriever):
         top_k: Optional[int] = None,
         index: str = None,
         headers: Optional[Dict[str, str]] = None,
+        **kwargs,
     ) -> List[Document]:
         """
         Scan through documents in DocumentStore and return a small number documents
@@ -203,7 +207,7 @@ class DensePassageRetriever(BaseRetriever):
         if index is None:
             index = self.document_store.index
 
-        query_emb = self.embed_queries(texts=[query])
+        query_emb = self.embed_queries(texts=[query], **kwargs)
         documents = self.document_store.query_by_embedding(
             query_emb=query_emb[0], top_k=top_k, filters=filters, index=index, headers=headers, return_embedding=False
         )
@@ -224,6 +228,7 @@ class DensePassageRetriever(BaseRetriever):
         headers: Optional[Dict[str, str]] = None,
         batch_size: Optional[int] = None,
         scale_score: bool = None,
+        **kwargs,
     ) -> List[List[Document]]:
         if top_k is None:
             top_k = self.top_k
@@ -248,7 +253,7 @@ class DensePassageRetriever(BaseRetriever):
         documents = []
         query_embs: List[np.ndarray] = []
         for batch in self._get_batches(queries=queries, batch_size=batch_size):
-            query_embs.extend(self.embed_queries(texts=batch))
+            query_embs.extend(self.embed_queries(texts=batch, **kwargs))
         for query_emb, cur_filters in tqdm(
             zip(query_embs, filters), total=len(query_embs), disable=not self.progress_bar, desc="Querying"
         ):
@@ -264,7 +269,7 @@ class DensePassageRetriever(BaseRetriever):
 
         return documents
 
-    def _get_predictions(self, dicts):
+    def _get_predictions(self, dicts, **kwargs):
         """
         Feed a preprocessed dataset to the model and get the actual predictions (forward pass + formatting).
 
@@ -302,7 +307,6 @@ class DensePassageRetriever(BaseRetriever):
             disable_tqdm = True
         else:
             disable_tqdm = not self.progress_bar
-
         with tqdm(
             total=len(datasets) // self.batch_size,
             unit=" Docs",
@@ -314,10 +318,10 @@ class DensePassageRetriever(BaseRetriever):
             for i in range(0, len(datasets), self.batch_size):
 
                 if "query" in dicts[0]:
-                    cls_embeddings = self.query_encoder(datasets[i : i + self.batch_size])
+                    cls_embeddings = self.query_encoder(datasets[i : i + self.batch_size], **kwargs)
                     all_embeddings["query"].append(cls_embeddings["features"])
                 if "passages" in dicts[0]:
-                    cls_embeddings = self.passage_encoder(datasets[i : i + self.batch_size])
+                    cls_embeddings = self.passage_encoder(datasets[i : i + self.batch_size], **kwargs)
                     all_embeddings["passages"].append(cls_embeddings["features"])
                 progress_bar.update(self.batch_size)
 
@@ -327,7 +331,7 @@ class DensePassageRetriever(BaseRetriever):
             all_embeddings["query"] = np.concatenate(all_embeddings["query"])
         return all_embeddings
 
-    def embed_queries(self, texts: List[str]) -> List[np.ndarray]:
+    def embed_queries(self, texts: List[str], **kwargs) -> List[np.ndarray]:
         """
         Create embeddings for a list of queries using the query encoder
 
@@ -335,10 +339,10 @@ class DensePassageRetriever(BaseRetriever):
         :return: Embeddings, one per input queries
         """
         queries = [{"query": q} for q in texts]
-        result = self._get_predictions(queries)["query"]
+        result = self._get_predictions(queries, **kwargs)["query"]
         return result
 
-    def embed_documents(self, docs: List[Document]) -> List[np.ndarray]:
+    def embed_documents(self, docs: List[Document], **kwargs) -> List[np.ndarray]:
         """
         Create embeddings for a list of documents using the passage encoder
 
@@ -358,6 +362,6 @@ class DensePassageRetriever(BaseRetriever):
             }
             for d in docs
         ]
-        embeddings = self._get_predictions(passages)["passages"]
+        embeddings = self._get_predictions(passages, **kwargs)["passages"]
 
         return embeddings
