@@ -54,7 +54,7 @@ def eval_one_model(model_dir: str):
         "--debug=True",
         f"--model_name_or_path={model_dir}",
         f"--output_dir={model_dir}",
-        "--per_device_eval_batch_size=32",
+        "--per_device_eval_batch_size=64",
         "--max_length=64",
         f"--train_path={train_file}",
         f"--dev_path={dev_file}",
@@ -66,7 +66,7 @@ def eval_one_model(model_dir: str):
     subprocess.run(cmd_list)
 
 
-def extract_metric():
+def extract_metric(output_excel="metric.xlsx"):
     """
     从所有的模型中提取指标, 并输出成 excel 文件
     """
@@ -91,14 +91,16 @@ def extract_metric():
         )
 
     df = pd.DataFrame(data_list)
-    df.to_excel(os.path.join(base_output_dir, "metric.xlsx"))
+    df.to_excel(os.path.join(base_output_dir, output_excel))
 
 
 def main():
-    for model in SUPPORTED_MODELS:
-        model_dir = os.path.join(base_output_dir, model)
-        eval_one_model(model_dir)
-    extract_metric()
+    for name in os.listdir(base_output_dir):
+        model_dir = os.path.join(base_output_dir, name)
+        if os.path.isdir(model_dir) and name.startswith("ernie"):
+            print("run eval on model: ", model_dir)
+            eval_one_model(model_dir)
+    extract_metric(output_excel="metric.xlsx")
 
 
 if __name__ == "__main__":
