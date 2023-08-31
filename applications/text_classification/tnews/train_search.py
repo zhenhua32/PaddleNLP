@@ -68,7 +68,8 @@ def main():
     model = "ernie-3.0-base-zh"
 
     search_space = {
-        "learning_rate": ["1e-4", "1e-5", "3e-5", "5e-5", "7e-5", "1e-6"],
+        # "learning_rate": ["1e-4", "1e-5", "3e-5", "5e-5", "7e-5", "1e-6"],
+        "learning_rate": ["2e-4", "4e-4"],
     }
 
     base_output_dir = r"G:\code\github\PaddleNLP\outputs\tnews_public"

@@ -66,13 +66,23 @@ def eval_one_model(model_dir: str):
     subprocess.run(cmd_list)
 
 
+def get_all_models():
+    """
+    获取所有待评估的模型目录和模型名字
+    """
+    for name in os.listdir(base_output_dir):
+        model_dir = os.path.join(base_output_dir, name)
+        if os.path.isdir(model_dir) and name.startswith("ernie-3.0-base-zh_lr"):
+            yield model_dir, name
+
+
 def extract_metric(output_excel="metric.xlsx"):
     """
     从所有的模型中提取指标, 并输出成 excel 文件
     """
     data_list = []
-    for model in SUPPORTED_MODELS:
-        model_dir = os.path.join(base_output_dir, model)
+
+    for model_dir, model in get_all_models():
         bad_case_file = os.path.join(model_dir, "bad_case.txt")
 
         with open(bad_case_file, "r", encoding="utf8") as f:
@@ -95,11 +105,9 @@ def extract_metric(output_excel="metric.xlsx"):
 
 
 def main():
-    for name in os.listdir(base_output_dir):
-        model_dir = os.path.join(base_output_dir, name)
-        if os.path.isdir(model_dir) and name.startswith("ernie"):
-            print("run eval on model: ", model_dir)
-            eval_one_model(model_dir)
+    for model_dir, name in get_all_models():
+        print("run eval on model: ", model_dir)
+        eval_one_model(model_dir)
     extract_metric(output_excel="metric.xlsx")
 
 
